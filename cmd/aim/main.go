@@ -75,6 +75,11 @@ func run() int {
 		Stdin: os.Stdin, Stdout: os.Stdout, Stderr: os.Stderr,
 		Interactive: isTerminal(os.Stdin) && isTerminal(os.Stderr),
 		Core:        c,
+		Settings: cli.Settings{
+			File:      filepath.Join(paths.Config, "config.toml"),
+			Autostart: filepath.Join(paths.Autostart, "aim-gui.desktop"),
+			GUI:       filepath.Join(filepath.Dir(exe), "aim-gui"),
+		},
 	})
 }
 

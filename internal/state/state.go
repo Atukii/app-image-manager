@@ -58,6 +58,9 @@ type App struct {
 	// Rejected is a Release tag whose download didn't match its Digest; it is
 	// not downloaded again.
 	Rejected string `json:"rejected,omitempty"`
+	// Dismissed is the Version whose update the user acknowledged ("Got
+	// it"), so it is no longer shown as needing attention.
+	Dismissed string `json:"dismissed,omitempty"`
 	// LastCheck is the outcome of the most recent Check.
 	LastCheck *LastCheck `json:"lastCheck,omitempty"`
 }
@@ -67,6 +70,8 @@ type LastCheck struct {
 	At     time.Time `json:"at"`
 	Result string    `json:"result"`
 	Error  string    `json:"error,omitempty"`
+	// RateLimited is set when GitHub's API rate limit stopped the Check.
+	RateLimited bool `json:"rateLimited,omitempty"`
 }
 
 // Release identifies an installed Release.

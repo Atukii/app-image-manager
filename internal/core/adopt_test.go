@@ -246,3 +246,17 @@ func TestConsolidationChoicesAreNeverMadeForTheUser(t *testing.T) {
 		t.Fatalf("got %+v; want the Name choice with no default, which --yes can't answer", q)
 	}
 }
+
+func TestConsolidationAsksAboutEveryDifferingFieldAtOnce(t *testing.T) {
+	w := newWorld(t)
+	downloaded := knownObsidian(t, w)
+	handMadeEntry(t, w, downloaded)
+
+	_, err := w.core().Adopt(context.Background(), downloaded, obsidianURL, core.With(core.Fixed{"app-id": {Value: "obsidian"}}))
+
+	var need *core.NeedAnswers
+	if !errors.As(err, &need) || len(need.Questions) != 2 ||
+		need.Questions[0].ID != "consolidate.Name" || need.Questions[1].ID != "consolidate.Categories" {
+		t.Fatalf("got %v; want the Name and Categories choices together, so the GUI can show them side by side", err)
+	}
+}

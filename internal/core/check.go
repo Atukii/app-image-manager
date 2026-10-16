@@ -28,6 +28,8 @@ type CheckResult struct {
 	// Reopen is set when the app was running while it was updated: it
 	// uses the new version once reopened.
 	Reopen bool `json:"reopen,omitempty"`
+	// RateLimited is set when GitHub's API rate limit made the Check fail.
+	RateLimited bool `json:"rateLimited,omitempty"`
 }
 
 // Check asks each Managed App's Release Source for a newer Release and
@@ -61,7 +63,7 @@ func (c *Core) record(id string, result CheckResult) {
 		if !ok {
 			return nil
 		}
-		app.LastCheck = &state.LastCheck{At: c.deps.Now(), Result: result.Result, Error: result.Error}
+		app.LastCheck = &state.LastCheck{At: c.deps.Now(), Result: result.Result, Error: result.Error, RateLimited: result.RateLimited}
 		s.Apps[id] = app
 		return nil
 	})
@@ -114,6 +116,7 @@ func (c *Core) check(ctx context.Context, app state.App) (CheckResult, error) {
 	result := CheckResult{App: app.ID}
 	fail := func(err error) (CheckResult, error) {
 		result.Result, result.Error = "failed", err.Error()
+		result.RateLimited = errors.Is(err, source.ErrRateLimited)
 		return result, err
 	}
 	src, err := c.deps.Sources(app.Source)

@@ -23,6 +23,14 @@ type Env struct {
 	// Interactive is set when stdin is a terminal, so aim may prompt.
 	Interactive bool
 	Core        *core.Core
+	Settings    Settings
+}
+
+// Settings are the files aim config reads and writes.
+type Settings struct {
+	File      string // config.toml
+	Autostart string // the tray's login entry, ~/.config/autostart/aim-gui.desktop
+	GUI       string // the aim-gui binary the login entry starts
 }
 
 // Exit codes.
@@ -206,6 +214,11 @@ func (inv *invocation) fail(err error) int {
 	if errors.Is(err, errQuietFailure) {
 		return exitError
 	}
+	var usage usageError
+	if errors.As(err, &usage) && !inv.json {
+		fmt.Fprintf(inv.env.Stderr, "aim: %s\n", usage)
+		return exitUsage
+	}
 	var need *core.NeedAnswers
 	isNeed := errors.As(err, &need)
 	if inv.json {
@@ -346,6 +359,11 @@ Letting go
   remove <app-id>              delete an app entirely
   unmanage <app-id>            stop managing an app; it stays installed and keeps working
   uninstall                    stop managing every app and remove AiM itself
+
+Settings
+  config                       show AiM's settings
+  config set <key> <value>     change one: default_poll, github_token, notify.installed,
+                               notify.failed, notify.digest_mismatch, tray_autostart
 
 Maintenance
   doctor                       look for problems and say how to fix them

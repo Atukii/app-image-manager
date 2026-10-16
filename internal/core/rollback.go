@@ -103,3 +103,18 @@ func (c *Core) Skip(ctx context.Context, id, tag string) (string, error) {
 	})
 	return tag, err
 }
+
+// Dismiss records that the user acknowledged a Managed App's latest update
+// ("Got it"), until the next one.
+func (c *Core) Dismiss(ctx context.Context, id string) error {
+	_, err := c.store.Update(func(s *state.State) error {
+		app, ok := s.Apps[id]
+		if !ok {
+			return fmt.Errorf("%q is not a Managed App", id)
+		}
+		app.Dismissed = app.Tag
+		s.Apps[id] = app
+		return nil
+	})
+	return err
+}

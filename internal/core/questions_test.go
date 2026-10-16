@@ -226,3 +226,15 @@ func TestAddSaysWhenADownloadCouldNotBeVerified(t *testing.T) {
 		t.Fatalf("notes %q; want it said that the release publishes no checksum", out.Notes)
 	}
 }
+
+func TestTheDraftReviewAsksForEveryFieldAtOnce(t *testing.T) {
+	w := newWorld(t)
+	w.publish("v2.0", oct1, map[string]testkit.AppImage{"MyTool-2.0.AppImage": toolImage})
+
+	_, err := w.core().Add(context.Background(), toolURL, core.With(core.Fixed{"app-id": {Value: "my-tool"}}))
+
+	var need *core.NeedAnswers
+	if !errors.As(err, &need) || len(need.Questions) != 5 || need.Questions[0].ID != "entry.Name" {
+		t.Fatalf("got %v; want the five drafted fields together, so the GUI can show one form", err)
+	}
+}

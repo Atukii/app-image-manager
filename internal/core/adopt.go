@@ -281,8 +281,9 @@ func consolidate(ctx context.Context, o opts, userFile string, info appimage.Inf
 	result := desktop.Consolidate(user, embedded)
 	overrides := result.Carried
 	overrides.Fields = map[string]string{}
-	for _, choice := range result.Choices {
-		q := Question{
+	questions := make([]Question, len(result.Choices))
+	for i, choice := range result.Choices {
+		questions[i] = Question{
 			ID: "consolidate." + choice.Key,
 			Prompt: fmt.Sprintf("Your Desktop Entry %s and the AppImage disagree on %s. Which should AiM use?",
 				filepath.Base(userFile), choice.Key),
@@ -291,13 +292,15 @@ func consolidate(ctx context.Context, o opts, userFile string, info appimage.Inf
 			Flag: "--keep " + choice.Key + "=a|b|c",
 		}
 		if choice.Both != "" {
-			q.Options = append(q.Options, Option{Key: "c", Label: "both: " + quoted(choice.Both)})
+			questions[i].Options = append(questions[i].Options, Option{Key: "c", Label: "both: " + quoted(choice.Both)})
 		}
-		answer, err := o.ask(ctx, q)
-		if err != nil {
-			return desktop.Overrides{}, err
-		}
-		switch answer {
+	}
+	answers, err := o.askAll(ctx, questions)
+	if err != nil {
+		return desktop.Overrides{}, err
+	}
+	for i, choice := range result.Choices {
+		switch answers[i] {
 		case "a":
 			overrides.Fields[choice.Key] = choice.Yours
 		case "c":

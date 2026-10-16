@@ -2,12 +2,14 @@ package core_test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
 
+	"appimage-manager/internal/source"
 	"appimage-manager/internal/testkit"
 )
 
@@ -214,5 +216,38 @@ func TestListSaysReopenWhileTheOldVersionStillRuns(t *testing.T) {
 	stop()
 	if apps, _ := w.core().List(ctx); apps[0].Reopen {
 		t.Fatal("want Reopen cleared once the old version stopped")
+	}
+}
+
+func TestGotItHidesAnUpdateUntilTheNextOne(t *testing.T) {
+	w := newWorld(t)
+	updatedObsidian(t, w)
+	ctx := context.Background()
+
+	if err := w.core().Dismiss(ctx, "obsidian"); err != nil {
+		t.Fatal(err)
+	}
+	apps, _ := w.core().List(ctx)
+	if !apps[0].Dismissed {
+		t.Fatal("want v1.10.0's update dismissed")
+	}
+
+	w.publish("v1.10.1", oct10.AddDate(0, 0, 1), map[string]testkit.AppImage{"Obsidian-1.10.1.AppImage": obsidian110})
+	w.core().Check(ctx, "obsidian")
+	if apps, _ := w.core().List(ctx); apps[0].Dismissed {
+		t.Fatal("want the next update, v1.10.1, shown again")
+	}
+}
+
+func TestTheLastCheckSaysWhenGitHubsLimitStoppedIt(t *testing.T) {
+	w := newWorld(t)
+	addObsidian(t, w, obsidianImage)
+	w.source.FailWith = fmt.Errorf("GitHub …/releases/latest: %w", source.ErrRateLimited)
+	w.core().Check(context.Background(), "obsidian")
+
+	apps, _ := w.core().List(context.Background())
+
+	if apps[0].LastCheck == nil || !apps[0].LastCheck.RateLimited {
+		t.Fatalf("got %+v; want the last check marked as stopped by GitHub's rate limit", apps[0].LastCheck)
 	}
 }

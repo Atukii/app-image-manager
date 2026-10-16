@@ -31,6 +31,7 @@ type fixture struct {
 	home     string
 	releases *testkit.Releases
 	core     *core.Core
+	settings cli.Settings
 }
 
 func newFixture(t *testing.T) *fixture {
@@ -40,6 +41,11 @@ func newFixture(t *testing.T) *fixture {
 		map[string]testkit.AppImage{"Obsidian-1.9.0.AppImage": obsidianImage})
 	paths := core.HomePaths(f.home)
 	paths.SystemApplications = nil
+	f.settings = cli.Settings{
+		File:      filepath.Join(paths.Config, "config.toml"),
+		Autostart: filepath.Join(paths.Autostart, "aim-gui.desktop"),
+		GUI:       "/home/jakub/.local/bin/aim-gui",
+	}
 	f.core = core.New(core.Deps{
 		Paths:     paths,
 		HTTP:      f.releases.Server.Client(),
@@ -57,7 +63,7 @@ func (f *fixture) run(input string, args ...string) (code int, stdout, stderr st
 	var out, errOut bytes.Buffer
 	code = cli.Run(context.Background(), args, cli.Env{
 		Stdin: strings.NewReader(input), Stdout: &out, Stderr: &errOut,
-		Interactive: input != "", Core: f.core,
+		Interactive: input != "", Core: f.core, Settings: f.settings,
 	})
 	return code, out.String(), errOut.String()
 }
@@ -123,7 +129,7 @@ func TestTheGUIProtocolAsksThenAppliesAnswers(t *testing.T) {
 func (f *fixture) runWithStdin(stdin string, args ...string) (code int, stdout, stderr string) {
 	var out, errOut bytes.Buffer
 	code = cli.Run(context.Background(), args, cli.Env{
-		Stdin: strings.NewReader(stdin), Stdout: &out, Stderr: &errOut, Core: f.core,
+		Stdin: strings.NewReader(stdin), Stdout: &out, Stderr: &errOut, Core: f.core, Settings: f.settings,
 	})
 	return code, out.String(), errOut.String()
 }

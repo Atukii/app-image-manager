@@ -160,6 +160,27 @@ func (o opts) ask(ctx context.Context, q Question) (string, error) {
 	return a.Value, nil
 }
 
+// askAll asks a group of Questions that belong together, such as every
+// Consolidation choice. If any is unanswered, all the unanswered ones are
+// returned together in NeedAnswers, so a GUI can show them side by side.
+func (o opts) askAll(ctx context.Context, qs []Question) ([]string, error) {
+	answers := make([]string, len(qs))
+	var missing []Question
+	for i, q := range qs {
+		q.Basis = basis(q)
+		a, ok := o.answerer.Answer(ctx, q)
+		if !ok {
+			missing = append(missing, q)
+			continue
+		}
+		answers[i] = a.Value
+	}
+	if len(missing) > 0 {
+		return nil, &NeedAnswers{Questions: missing}
+	}
+	return answers, nil
+}
+
 func basis(q Question) string {
 	h := sha256.New()
 	fmt.Fprintf(h, "%s\x00%s\x00", q.ID, q.Prompt)

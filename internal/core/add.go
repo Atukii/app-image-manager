@@ -321,18 +321,23 @@ var draftFields = []struct{ key, prompt string }{
 func reviewDraft(ctx context.Context, o opts, id string) (desktop.Overrides, error) {
 	draft := desktop.Draft(id)
 	overrides := desktop.Overrides{Fields: map[string]string{}}
-	for _, f := range draftFields {
-		suggested, _ := draft.Get(f.key)
-		value, err := o.ask(ctx, Question{
+	questions := make([]Question, len(draftFields))
+	suggested := make([]string, len(draftFields))
+	for i, f := range draftFields {
+		suggested[i], _ = draft.Get(f.key)
+		questions[i] = Question{
 			ID:      "entry." + f.key,
 			Prompt:  "This AppImage has no Desktop Entry, so AiM drafted one. " + f.prompt,
-			Default: ptr(suggested), YesOK: true, Flag: "--entry " + f.key + "=…",
-		})
-		if err != nil {
-			return desktop.Overrides{}, err
+			Default: ptr(suggested[i]), YesOK: true, Flag: "--entry " + f.key + "=…",
 		}
-		if value != suggested {
-			overrides.Fields[f.key] = value
+	}
+	answers, err := o.askAll(ctx, questions)
+	if err != nil {
+		return desktop.Overrides{}, err
+	}
+	for i, f := range draftFields {
+		if answers[i] != suggested[i] {
+			overrides.Fields[f.key] = answers[i]
 		}
 	}
 	return overrides, nil

@@ -27,6 +27,9 @@ type AppStatus struct {
 	// Reopen is set while the app still runs the version an update
 	// replaced (SWAP-2).
 	Reopen bool `json:"reopen,omitempty"`
+	// Dismissed is set when the user acknowledged the installed Version's
+	// update ("Got it").
+	Dismissed bool `json:"dismissed,omitempty"`
 	// Previous is the Previous Version's tag, available for Rollback.
 	Previous string `json:"previous,omitempty"`
 	// Source is the Release Source's URL.
@@ -47,8 +50,9 @@ func (c *Core) List(ctx context.Context) ([]AppStatus, error) {
 	for _, id := range slices.Sorted(maps.Keys(st.Apps)) {
 		app := st.Apps[id]
 		status := AppStatus{ID: id, Name: c.displayName(app), Version: app.Tag, Poll: app.Poll, LastCheck: app.LastCheck, Skipped: app.Skipped, Overrides: app.Overrides,
-			Reopen: proc.RunningReplaced(c.appImagePath(id), c.deps.ProcRoot),
-			Source: sourceURL(app.Source), AssetPattern: app.AssetPattern, DesktopFile: app.DesktopFile}
+			Reopen:    proc.RunningReplaced(c.appImagePath(id), c.deps.ProcRoot),
+			Dismissed: app.Dismissed != "" && app.Dismissed == app.Tag,
+			Source:    sourceURL(app.Source), AssetPattern: app.AssetPattern, DesktopFile: app.DesktopFile}
 		if app.Previous != nil {
 			status.Previous = app.Previous.Tag
 		}
