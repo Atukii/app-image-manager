@@ -150,6 +150,9 @@ func TestUninstallLeavesNoUnitsEvenWhenNoAppHadATimer(t *testing.T) {
 }
 
 func TestUninstallLeavesBinariesItMayNotDeleteToTheUser(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root can write to read-only directories, so this can't be set up")
+	}
 	w := newWorld(t)
 	aimBinaries(t, w)
 	os.Chmod(w.path(".local/bin"), 0o555) // like /usr/local/bin for a normal user

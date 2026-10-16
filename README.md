@@ -26,7 +26,7 @@ AiM is built for Arch Linux and CachyOS on x86_64. Other Linux desktops with sys
 
 - Linux on x86_64 with a systemd user session.
 - Most AppImages need FUSE 2 to start: `sudo pacman -S fuse2`. `aim doctor` checks for it.
-- For `aim-gui`: an X11 or Wayland desktop (on Wayland it runs through XWayland). Its tray icon needs a StatusNotifierItem tray: KDE Plasma has one; GNOME needs the AppIndicator extension.
+- For `aim-gui`: an X11 or Wayland desktop. Its tray icon needs a StatusNotifierItem tray: KDE Plasma has one; GNOME needs the AppIndicator extension.
 
 ## Install
 
@@ -132,7 +132,7 @@ CGO_ENABLED=0 go build -o aim ./cmd/aim
 `aim-gui` uses [Fyne](https://fyne.io) and needs cgo, so build it on Linux. On Arch or CachyOS, install the packages [Fyne lists](https://docs.fyne.io/started/) plus a C compiler, then build:
 
 ```sh
-sudo pacman -S --needed go gcc xorg-server-devel libxcursor libxrandr libxinerama libxi wayland libxkbcommon
+sudo pacman -S --needed go gcc xorg-server-devel libxcursor libxrandr libxinerama libxi wayland libxkbcommon wayland-protocols
 go build -o aim-gui ./cmd/aim-gui
 ```
 
