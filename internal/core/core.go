@@ -21,6 +21,8 @@ type Paths struct {
 	Units        string // ~/.config/systemd/user
 	Cache        string // ~/.cache/aim: downloads and API responses
 	Icons        string // ~/.local/share/icons: the user's icon themes
+	Config       string // ~/.config/aim
+	Autostart    string // ~/.config/autostart: where the tray's login entry lives
 	// SystemApplications are the system Desktop Entry directories, checked
 	// for Shadowing.
 	SystemApplications []string
@@ -35,6 +37,8 @@ func HomePaths(home string) Paths {
 		Units:              filepath.Join(home, ".config/systemd/user"),
 		Cache:              filepath.Join(home, ".cache/aim"),
 		Icons:              filepath.Join(home, ".local/share/icons"),
+		Config:             filepath.Join(home, ".config/aim"),
+		Autostart:          filepath.Join(home, ".config/autostart"),
 		SystemApplications: []string{"/usr/local/share/applications", "/usr/share/applications"},
 	}
 }
@@ -56,6 +60,11 @@ type Deps struct {
 	Sleep func(time.Duration)
 	// Notifier tells the user about Checks; nil sends nothing.
 	Notifier Notifier
+	// Binaries are the installed aim and aim-gui executables.
+	Binaries []string
+	// PackageOwner names the package that installed path (pacman -Qo), or
+	// returns "" when no package did. Nil means none did.
+	PackageOwner func(path string) string
 	// RefreshMenu tells the desktop that the Desktop Entries in dir changed
 	// (update-desktop-database). Nil does nothing.
 	RefreshMenu func(dir string)
@@ -78,6 +87,9 @@ func New(d Deps) *Core {
 	}
 	if d.ProcRoot == "" {
 		d.ProcRoot = "/proc"
+	}
+	if d.PackageOwner == nil {
+		d.PackageOwner = func(string) string { return "" }
 	}
 	if d.Sleep == nil {
 		d.Sleep = time.Sleep

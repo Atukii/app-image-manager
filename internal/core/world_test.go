@@ -35,6 +35,8 @@ type world struct {
 	downloads int
 	// notified records every notification sent.
 	notified []core.Notification
+	// owners maps binary paths to the package that installed them.
+	owners map[string]string
 	// refreshed records each directory the desktop menu was refreshed for.
 	refreshed []string
 }
@@ -47,6 +49,7 @@ func newWorld(t *testing.T) *world {
 		files:  map[string][]byte{},
 		source: &fakeSource{},
 		now:    time.Date(2026, 10, 16, 9, 0, 0, 0, time.UTC),
+		owners: map[string]string{},
 	}
 	w.systemd = testkit.NewSystemd(w.path(".config/systemd/user"))
 	w.server = httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
@@ -80,6 +83,8 @@ func (w *world) core() *core.Core {
 		Notifier: notifierFunc(func(n core.Notification) {
 			w.notified = append(w.notified, n)
 		}),
+		Binaries:     []string{w.path(".local/bin/aim"), w.path(".local/bin/aim-gui")},
+		PackageOwner: func(path string) string { return w.owners[path] },
 		RefreshMenu: func(dir string) {
 			w.refreshed = append(w.refreshed, dir)
 		},
