@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/assets/banner.png" alt="AiM, AppImage Manager: add from a link, keep updated, leave any time" width="100%">
+</p>
+
 # AiM: AppImage Manager
 
 AiM installs AppImages from a GitHub repository or a download link, puts them in the application menu with their own icon, and keeps each one updated on its own schedule. You can stop using AiM at any time without breaking the apps it installed.

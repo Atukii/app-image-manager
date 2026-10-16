@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 400" width="1280" height="400" role="img" aria-label="AiM, AppImage Manager: add AppImages from a link, keep them updated, leave any time">
+  <defs>
+    <radialGradient id="glowViolet" cx="0.22" cy="0.45" r="0.55">
+      <stop offset="0" stop-color="#8B5CF6" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#8B5CF6" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowPink" cx="0.88" cy="0.15" r="0.45">
+      <stop offset="0" stop-color="#F4A79A" stop-opacity="0.2"/>
+      <stop offset="1" stop-color="#F4A79A" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#C4B5FD"/>
+      <stop offset="1" stop-color="#A78BFA"/>
+    </linearGradient>
+    <linearGradient id="lid" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#A78BFA"/>
+      <stop offset="1" stop-color="#8B5CF6"/>
+    </linearGradient>
+    <linearGradient id="word" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#C4B5FD"/>
+      <stop offset="1" stop-color="#F4A79A"/>
+    </linearGradient>
+  </defs>
+  <rect width="1280" height="400" rx="28" fill="#0F081D"/>
+  <rect width="1280" height="400" rx="28" fill="url(#glowViolet)"/>
+  <rect width="1280" height="400" rx="28" fill="url(#glowPink)"/>
+
+  <!-- sparkles -->
+  <g fill="#C4B5FD">
+    <path d="M520 70 l5 13 l13 5 l-13 5 l-5 13 l-5 -13 l-13 -5 l13 -5 z" opacity="0.8"/>
+    <path d="M1180 300 l4 10 l10 4 l-10 4 l-4 10 l-4 -10 l-10 -4 l10 -4 z" opacity="0.6"/>
+    <circle cx="430" cy="320" r="4" opacity="0.6"/>
+    <circle cx="1110" cy="110" r="3" opacity="0.7"/>
+  </g>
+  <circle cx="760" cy="72" r="5" fill="#F4A79A" opacity="0.8"/>
+  <circle cx="1060" cy="330" r="4" fill="#F4A79A" opacity="0.7"/>
+
+  <!-- the logo, larger -->
+  <g transform="translate(110 64) scale(1.06)">
+    <ellipse cx="128" cy="226" rx="74" ry="10" fill="#000000" opacity="0.35"/>
+    <rect x="44" y="70" width="168" height="150" rx="44" fill="url(#body)"/>
+    <rect x="34" y="52" width="188" height="56" rx="26" fill="url(#lid)"/>
+    <rect x="112" y="52" width="32" height="56" rx="6" fill="#C4B5FD" opacity="0.55"/>
+    <ellipse cx="98" cy="150" rx="11" ry="14" fill="#0F081D"/>
+    <ellipse cx="158" cy="150" rx="11" ry="14" fill="#0F081D"/>
+    <circle cx="102" cy="144" r="4" fill="#FFFFFF"/>
+    <circle cx="162" cy="144" r="4" fill="#FFFFFF"/>
+    <ellipse cx="78" cy="176" rx="14" ry="8" fill="#F4A79A" opacity="0.85"/>
+    <ellipse cx="178" cy="176" rx="14" ry="8" fill="#F4A79A" opacity="0.85"/>
+    <path d="M112 178 Q128 194 144 178" fill="none" stroke="#0F081D" stroke-width="7" stroke-linecap="round"/>
+    <circle cx="206" cy="58" r="34" fill="#F4A79A" stroke="#0F081D" stroke-width="6"/>
+    <path d="M206 40 V74 M192 62 L206 76 L220 62" fill="none" stroke="#0F081D" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <!-- words -->
+  <g font-family="'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace">
+    <text x="440" y="200" font-size="120" font-weight="700" fill="url(#word)" letter-spacing="-2">AiM</text>
+    <text x="446" y="248" font-size="30" font-weight="600" fill="#ECE6FF">AppImage Manager</text>
+    <text x="446" y="300" font-size="21" fill="#A69FBD">Add from a link · keep updated · leave any time</text>
+  </g>
+
+  <!-- three little app tiles, one updating -->
+  <g transform="translate(980 150)">
+    <rect x="0" y="0" width="60" height="60" rx="14" fill="#2A2440" stroke="#A78BFA" stroke-width="2"/>
+    <rect x="76" y="0" width="60" height="60" rx="14" fill="#2A2440" stroke="#A78BFA" stroke-width="2"/>
+    <rect x="152" y="0" width="60" height="60" rx="14" fill="#A78BFA"/>
+    <path d="M182 16 V42 M171 32 L182 43 L193 32" fill="none" stroke="#0F081D" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="12" y="24" width="36" height="12" rx="6" fill="#C4B5FD" opacity="0.5"/>
+    <rect x="88" y="24" width="36" height="12" rx="6" fill="#C4B5FD" opacity="0.5"/>
+  </g>
+</svg>
