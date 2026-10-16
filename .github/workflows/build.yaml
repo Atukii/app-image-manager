@@ -94,7 +94,7 @@ jobs:
       - name: Install Fyne's build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends gcc libgl1-mesa-dev xorg-dev
+          sudo apt-get install -y --no-install-recommends gcc libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev wayland-protocols
       - name: Build aim (static, no cgo)
         env:
           VERSION: ${{ steps.which.outputs.version }}
