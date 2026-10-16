@@ -269,3 +269,14 @@ func TestTheAppIDPromptSaysWhatWasDownloaded(t *testing.T) {
 		t.Fatalf("stderr:\n%s\nwant the downloaded file named and said to be verified", stderr)
 	}
 }
+
+func TestCommandsThatCantDryRunRefuseToPretend(t *testing.T) {
+	f := added(t)
+
+	code, _, stderr := f.run("", "set-poll", "obsidian", "daily", "--dry-run")
+	_, listed, _ := f.run("", "list")
+
+	if code != 2 || !strings.Contains(stderr, "--dry-run") || strings.Contains(listed, "daily") {
+		t.Fatalf("exit %d, stderr %q, list:\n%s\nwant --dry-run refused and nothing changed", code, stderr, listed)
+	}
+}

@@ -11,6 +11,7 @@ import (
 
 func init() {
 	commands["adopt"] = command{
+		dryRun: true,
 		usage: "adopt <appimage> <source-url> [--version V | --install-latest] [--keep Key=a|b|c]… " +
 			"[--delete-old-entries yes|no] [add flags] [--yes] [--dry-run]",
 		minArgs: 2, maxArgs: 2,

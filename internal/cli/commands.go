@@ -50,7 +50,8 @@ func init() {
 		print: func(inv *invocation, _ any) { fmt.Fprintln(inv.env.Stdout, "Done.") },
 	}
 	commands["remove"] = command{
-		usage: "remove <app-id> [--yes] [--dry-run]", minArgs: 1, maxArgs: 1,
+		dryRun: true,
+		usage:  "remove <app-id> [--yes] [--dry-run]", minArgs: 1, maxArgs: 1,
 		run: func(ctx context.Context, inv *invocation, args []string) (any, error) {
 			return inv.env.Core.Remove(ctx, args[0], inv.options()...)
 		},
@@ -154,6 +155,7 @@ func init() {
 	}
 
 	commands["unmanage"] = command{
+		dryRun:  true,
 		usage:   "unmanage <app-id> [--previous delete|keep] [--layout keep|standard] [--yes] [--dry-run]",
 		minArgs: 1, maxArgs: 1,
 		flags: unmanageFlags,
@@ -164,7 +166,8 @@ func init() {
 	}
 
 	commands["uninstall"] = command{
-		usage: "uninstall --keep-config|--delete-config [--for-all each|once] [unmanage flags] [--yes] [--dry-run]",
+		dryRun: true,
+		usage:  "uninstall --keep-config|--delete-config [--for-all each|once] [unmanage flags] [--yes] [--dry-run]",
 		flags: func(fs *flag.FlagSet, inv *invocation) {
 			unmanageFlags(fs, inv)
 			fs.BoolFunc("keep-config", "keep ~/.config/aim", func(string) error {

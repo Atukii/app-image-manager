@@ -75,6 +75,10 @@ func Run(ctx context.Context, args []string, env Env) int {
 		fmt.Fprintf(env.Stderr, "usage: aim %s\n", cmd.usage)
 		return exitUsage
 	}
+	if inv.dryRun && !cmd.dryRun {
+		fmt.Fprintf(env.Stderr, "aim: %s can't do a --dry-run; leave it out to make the change\n", args[0])
+		return exitUsage
+	}
 	if *answersFile != "" {
 		if err := inv.readAnswers(*answersFile); err != nil {
 			return inv.fail(err)
@@ -267,7 +271,10 @@ func (f flagAnswers) Answer(ctx context.Context, q core.Question) (core.Answer, 
 type command struct {
 	usage            string
 	minArgs, maxArgs int // maxArgs < 0: no limit
-	flags            func(*flag.FlagSet, *invocation)
+	// dryRun says whether the command honours --dry-run; the others refuse
+	// it rather than make changes while seeming not to.
+	dryRun bool
+	flags  func(*flag.FlagSet, *invocation)
 	// run performs the command, returning its result for --json.
 	run func(context.Context, *invocation, []string) (any, error)
 	// print shows the result to a person; nil prints nothing.
@@ -276,6 +283,7 @@ type command struct {
 
 var commands = map[string]command{
 	"add": {
+		dryRun:  true,
 		usage:   "add <source-url> [--app-id ID] [--asset N] [--poll RATE] [--icon FILE] [--entry Key=Value]… [--shadowing rename|hide] [--yes] [--dry-run]",
 		minArgs: 1, maxArgs: 1,
 		flags: newAppFlags,
