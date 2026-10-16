@@ -6,6 +6,8 @@ import (
 	"encoding/hex"
 	"fmt"
 	"strings"
+
+	"appimage-manager/internal/state"
 )
 
 // Question is something an operation needs the user to decide.
@@ -103,6 +105,7 @@ type opts struct {
 	dryRun   bool
 	progress func(done, total int64)
 	icon     string
+	poll     state.PollRate
 }
 
 // With answers the operation's Questions with a.
@@ -119,6 +122,9 @@ func DryRun() Opt { return func(o *opts) { o.dryRun = true } }
 
 // Progress reports download progress.
 func Progress(fn func(done, total int64)) Opt { return func(o *opts) { o.progress = fn } }
+
+// Poll sets a new app's Poll Rate instead of the default (ADD-10).
+func Poll(rate state.PollRate) Opt { return func(o *opts) { o.poll = rate } }
 
 // Icon makes Add use the icon file at path (PNG or SVG) instead of the
 // AppImage's own (ADD-7).

@@ -232,14 +232,18 @@ func (c *Core) reintegrate(app *state.App) error {
 	if err != nil {
 		return err
 	}
-	if !app.UserIcon && len(info.Icon) > 0 {
+	if !app.UserIcon {
+		icon, ext := info.Icon, info.IconExt
+		if len(icon) == 0 {
+			icon, ext = defaultIcon, ".svg"
+		}
 		old := filepath.Join(c.appFolder(app.ID), app.ID+app.IconExt)
-		if err := os.WriteFile(filepath.Join(c.appFolder(app.ID), app.ID+info.IconExt), info.Icon, 0o644); err != nil {
+		if err := os.WriteFile(filepath.Join(c.appFolder(app.ID), app.ID+ext), icon, 0o644); err != nil {
 			return err
 		}
-		if info.IconExt != app.IconExt {
+		if ext != app.IconExt {
 			os.Remove(old)
-			app.IconExt = info.IconExt
+			app.IconExt = ext
 		}
 	}
 	iconPath := filepath.Join(c.appFolder(app.ID), app.ID+app.IconExt)

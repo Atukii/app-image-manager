@@ -63,6 +63,13 @@ func (c *Core) Add(ctx context.Context, sourceURL string, options ...Opt) (Outco
 			return Outcome{}, err
 		}
 	}
+	poll := c.deps.DefaultPoll
+	if o.poll != "" {
+		if !validPoll(o.poll) {
+			return Outcome{}, fmt.Errorf("poll rate %q: want daily, weekly, monthly or never", o.poll)
+		}
+		poll = o.poll
+	}
 	current, err := c.store.Load()
 	if err != nil {
 		return Outcome{}, err
@@ -74,7 +81,7 @@ func (c *Core) Add(ctx context.Context, sourceURL string, options ...Opt) (Outco
 
 	app := state.App{
 		ID: id, Source: ref, AssetPattern: pattern,
-		Tag: rel.Tag, Published: rel.Published, Poll: c.deps.DefaultPoll,
+		Tag: rel.Tag, Published: rel.Published, Poll: poll,
 		DesktopFile: info.DesktopFile, UserIcon: o.icon != "",
 	}
 	if app.DesktopFile == "" {
