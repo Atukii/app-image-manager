@@ -13,5 +13,5 @@ Every operation that changes something is a typed method on `core` (`Add`, `Adop
 
 - Question IDs and `Basis` are part of the public `--json` contract (ADR 0001).
 - Inside `core`, a Plan is a list of Steps run by one executor, so `--dry-run` and Removal Plans show exactly what a real run would do.
-- Replays redo Release lookups, so `source` uses a short-lived lookup cache and ETag requests to stay inside GitHub's unauthenticated rate limit. Downloads are cached by Digest.
+- Replays redo Release lookups, so `source` keeps GitHub responses in an on-disk cache shared between aim processes. A lookup within 10 minutes of the last one sends no request at all. Without a token, a `304 Not Modified` still counts against GitHub's 60-an-hour limit (checked 2026-10-16), so ETag requests (`If-None-Match`) only add savings for users with a token. Downloads are cached by Digest.
 - A shared test must run every scenario through both the terminal prompter and the fixed-answers adapter, to catch differences in question order.
