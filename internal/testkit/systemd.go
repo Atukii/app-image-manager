@@ -52,6 +52,10 @@ func (f *Systemd) Run(_ context.Context, args ...string) error {
 			return fmt.Errorf("Failed to disable unit: Unit file %s does not exist", unit)
 		}
 		delete(f.Enabled, unit)
+	case strings.HasPrefix(cmd, "is-enabled "):
+		if !f.Enabled[strings.TrimPrefix(cmd, "is-enabled ")] {
+			return fmt.Errorf("disabled")
+		}
 	default:
 		return fmt.Errorf("unexpected systemctl command %q", cmd)
 	}

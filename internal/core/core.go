@@ -5,6 +5,7 @@ package core
 import (
 	"context"
 	"net/http"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -71,6 +72,9 @@ type Deps struct {
 	// PackageOwner names the package that installed path (pacman -Qo), or
 	// returns "" when no package did. Nil means none did.
 	PackageOwner func(path string) string
+	// HasFuse2 reports whether libfuse2, which older AppImages need, is
+	// installed. Nil checks the usual library paths.
+	HasFuse2 func() bool
 	// RefreshMenu tells the desktop that the Desktop Entries in dir changed
 	// (update-desktop-database). Nil does nothing.
 	RefreshMenu func(dir string)
@@ -93,6 +97,16 @@ func New(d Deps) *Core {
 	}
 	if d.ProcRoot == "" {
 		d.ProcRoot = "/proc"
+	}
+	if d.HasFuse2 == nil {
+		d.HasFuse2 = func() bool {
+			for _, lib := range []string{"/usr/lib/libfuse.so.2", "/usr/lib64/libfuse.so.2", "/usr/lib/x86_64-linux-gnu/libfuse.so.2"} {
+				if _, err := os.Stat(lib); err == nil {
+					return true
+				}
+			}
+			return false
+		}
 	}
 	if d.PackageOwner == nil {
 		d.PackageOwner = func(string) string { return "" }

@@ -133,3 +133,18 @@ func TestUninstallCanAnswerTheAppQuestionsOnceForAllApps(t *testing.T) {
 		t.Fatal("want the one 'keep' answer applied to both apps' Previous Versions")
 	}
 }
+
+func TestUninstallLeavesNoUnitsEvenWhenNoAppHadATimer(t *testing.T) {
+	w := newWorld(t)
+	addObsidian(t, w, obsidianImage)
+	ctx := context.Background()
+	w.core().SetPoll(ctx, "obsidian", "never")
+
+	if _, err := w.core().Uninstall(ctx, answers(keepConfig)); err != nil {
+		t.Fatal(err)
+	}
+
+	if units, _ := os.ReadDir(w.path(".config/systemd/user")); len(units) != 0 {
+		t.Fatalf("got %v; want no AiM units left", units)
+	}
+}

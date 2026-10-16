@@ -37,6 +37,8 @@ type world struct {
 	notified []core.Notification
 	// owners maps binary paths to the package that installed them.
 	owners map[string]string
+	// noFuse2 makes fuse2 look missing.
+	noFuse2 bool
 	// refreshed records each directory the desktop menu was refreshed for.
 	refreshed []string
 }
@@ -85,6 +87,7 @@ func (w *world) core() *core.Core {
 		}),
 		Binaries:     []string{w.path(".local/bin/aim"), w.path(".local/bin/aim-gui")},
 		PackageOwner: func(path string) string { return w.owners[path] },
+		HasFuse2:     func() bool { return !w.noFuse2 },
 		RefreshMenu: func(dir string) {
 			w.refreshed = append(w.refreshed, dir)
 		},
@@ -120,9 +123,14 @@ type fakeSource struct {
 	releases []source.Release // newest first
 	// failures is how many of the next lookups fail.
 	failures int
+	// failWith, when set, makes every lookup fail with it.
+	failWith error
 }
 
 func (f *fakeSource) Latest(context.Context) (source.Release, error) {
+	if f.failWith != nil {
+		return source.Release{}, f.failWith
+	}
 	if f.failures > 0 {
 		f.failures--
 		return source.Release{}, errors.New("dial tcp: lookup api.github.com: no such host")

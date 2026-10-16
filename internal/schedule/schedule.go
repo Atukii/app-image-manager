@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"appimage-manager/internal/state"
 )
@@ -41,6 +42,24 @@ func (s *Scheduler) Installed() bool {
 	return err == nil
 }
 
+// Scheduled lists the App IDs that have a timer drop-in.
+func (s *Scheduler) Scheduled() []string {
+	dirs, _ := filepath.Glob(filepath.Join(s.UnitDir, "aim-check@*.timer.d"))
+	ids := make([]string, len(dirs))
+	for i, dir := range dirs {
+		ids[i] = strings.TrimSuffix(strings.TrimPrefix(filepath.Base(dir), "aim-check@"), ".timer.d")
+	}
+	return ids
+}
+
+// Enabled reports whether appID's timer is in place and enabled.
+func (s *Scheduler) Enabled(ctx context.Context, appID string) bool {
+	if _, err := os.Stat(filepath.Join(s.UnitDir, timer(appID)+".d", "poll.conf")); err != nil {
+		return false
+	}
+	return s.Systemctl.Run(ctx, "--user", "is-enabled", timer(appID)) == nil
+}
+
 // Set schedules appID's Checks at rate. Never means appID has no timer.
 func (s *Scheduler) Set(ctx context.Context, appID string, rate state.PollRate) error {
 	if rate == state.Never {
@@ -69,9 +88,13 @@ func (s *Scheduler) Remove(ctx context.Context, appID string) error {
 	if err := s.unschedule(ctx, appID); err != nil {
 		return err
 	}
-	others, err := filepath.Glob(filepath.Join(s.UnitDir, "aim-check@*.timer.d"))
-	if err != nil || len(others) > 0 {
-		return err
+	return s.Tidy(ctx)
+}
+
+// Tidy deletes the aim-check@ templates when no Managed App has a timer.
+func (s *Scheduler) Tidy(ctx context.Context) error {
+	if len(s.Scheduled()) > 0 || !s.Installed() {
+		return nil
 	}
 	for _, name := range []string{serviceTemplate, timerTemplate} {
 		if err := os.Remove(filepath.Join(s.UnitDir, name)); err != nil && !errors.Is(err, fs.ErrNotExist) {

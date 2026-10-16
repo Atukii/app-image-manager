@@ -155,7 +155,7 @@ The timer runs `aim check <App ID>`. Run by hand without arguments, it Checks ev
 
 ### `aim setup` and `aim doctor`
 
-- **SETUP-1** `setup` installs or repairs the timer template and every app's timer instance, enables them, and runs `systemctl --user daemon-reload`. It's safe to run any number of times.
+- **SETUP-1** `setup` installs or repairs the timer template and every app's timer instance, enables them, runs `systemctl --user daemon-reload`, and rewrites any missing Desktop Entry. It also removes AiM units left behind for apps it no longer manages. It's safe to run any number of times.
 - **DOC-1** `doctor` reports, with a fix for each problem:
   - `fuse2` missing (`sudo pacman -S fuse2`)
   - timer instances missing or disabled
