@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -24,6 +25,9 @@ type Question struct {
 	YesOK bool `json:"yesOk"`
 	// Flag is the aim flag that answers this Question.
 	Flag string `json:"flag,omitempty"`
+	// Plan is the Removal Plan (or other Plan) a "confirm" Question asks
+	// about.
+	Plan []string `json:"plan,omitempty"`
 	// Problem explains why a previous answer was rejected.
 	Problem string `json:"problem,omitempty"`
 	// Basis fingerprints the facts the Question was built from; an answer
@@ -158,7 +162,35 @@ func basis(q Question) string {
 	if q.Default != nil {
 		h.Write([]byte(*q.Default))
 	}
+	for _, step := range q.Plan {
+		fmt.Fprintf(h, "%s\x00", step)
+	}
+	h.Write([]byte(q.Problem))
 	return hex.EncodeToString(h.Sum(nil))[:12]
+}
+
+// ErrCancelled means the user declined a Plan.
+var ErrCancelled = errors.New("cancelled")
+
+// ErrStale means state changed after the Plan was confirmed; nothing was
+// changed, and the operation should be run again.
+var ErrStale = errors.New("something changed since the plan was shown; run it again")
+
+// confirm asks the user to confirm plan. generation is the state Generation
+// the plan was built from, so a confirmation of an older plan is stale.
+func (o opts) confirm(ctx context.Context, prompt string, plan Plan, generation int) error {
+	answer, err := o.ask(ctx, Question{
+		ID: "confirm", Prompt: prompt, Plan: append(plan.Descriptions(), fmt.Sprintf("(state %d)", generation)),
+		Options: []Option{{Key: "yes", Label: "go ahead"}, {Key: "no", Label: "cancel"}},
+		Default: ptr("yes"), YesOK: true, Flag: "--yes",
+	})
+	if err != nil {
+		return err
+	}
+	if answer != "yes" {
+		return ErrCancelled
+	}
+	return nil
 }
 
 func ptr(s string) *string { return &s }

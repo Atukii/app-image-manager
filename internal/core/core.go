@@ -20,6 +20,7 @@ type Paths struct {
 	Applications string // ~/.local/share/applications: Desktop Entries
 	Units        string // ~/.config/systemd/user
 	Cache        string // ~/.cache/aim: downloads and API responses
+	Icons        string // ~/.local/share/icons: the user's icon themes
 	// SystemApplications are the system Desktop Entry directories, checked
 	// for Shadowing.
 	SystemApplications []string
@@ -33,6 +34,7 @@ func HomePaths(home string) Paths {
 		Applications:       filepath.Join(home, ".local/share/applications"),
 		Units:              filepath.Join(home, ".config/systemd/user"),
 		Cache:              filepath.Join(home, ".cache/aim"),
+		Icons:              filepath.Join(home, ".local/share/icons"),
 		SystemApplications: []string{"/usr/local/share/applications", "/usr/share/applications"},
 	}
 }

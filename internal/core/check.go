@@ -191,31 +191,13 @@ func (c *Core) stage(id, download string, rel source.Release) (state.Staged, err
 }
 
 // swap replaces app id's installed AppImage with its Staged Update and
-// records the new Version. The installed AppImage becomes the Previous
-// Version.
+// records the new Version.
 func (c *Core) swap(id string, staged state.Staged) error {
 	_, err := c.store.Update(func(s *state.State) error {
 		app := s.Apps[id]
-		download := staged.Path
-		current := c.appImagePath(id)
-		previous := current + ".previous"
-		if err := os.Rename(current, previous); err != nil {
+		if err := c.swapFiles(&app, staged); err != nil {
 			return err
 		}
-		if err := moveFile(download, current); err != nil {
-			os.Rename(previous, current)
-			return err
-		}
-		if err := os.Chmod(current, 0o755); err != nil {
-			return err
-		}
-		if err := c.reintegrate(&app); err != nil {
-			os.Rename(previous, current)
-			return err
-		}
-		app.Previous = &state.Release{Tag: app.Tag, Published: app.Published}
-		app.Tag, app.Published, app.Staged = staged.Tag, staged.Published, nil
-		app.Skipped = "" // a newer Release supersedes the Skipped one
 		s.Apps[id] = app
 		return nil
 	})
@@ -223,6 +205,32 @@ func (c *Core) swap(id string, staged state.Staged) error {
 		c.deps.RefreshMenu(c.deps.Paths.Applications)
 	}
 	return err
+}
+
+// swapFiles moves staged into place as app's AppImage, keeping the
+// installed one as the Previous Version, rebuilds the icon and Desktop
+// Entry, and updates app. On failure the installed AppImage is restored.
+func (c *Core) swapFiles(app *state.App, staged state.Staged) error {
+	current := c.appImagePath(app.ID)
+	previous := current + ".previous"
+	if err := os.Rename(current, previous); err != nil {
+		return err
+	}
+	if err := moveFile(staged.Path, current); err != nil {
+		os.Rename(previous, current)
+		return err
+	}
+	if err := os.Chmod(current, 0o755); err != nil {
+		return err
+	}
+	if err := c.reintegrate(app); err != nil {
+		os.Rename(previous, current)
+		return err
+	}
+	app.Previous = &state.Release{Tag: app.Tag, Published: app.Published}
+	app.Tag, app.Published, app.Staged = staged.Tag, staged.Published, nil
+	app.Skipped = "" // a newer Release supersedes the Skipped one
+	return nil
 }
 
 // reintegrate rebuilds app's icon (unless the user chose it) and Desktop
