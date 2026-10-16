@@ -153,4 +153,6 @@ The first release is v0.1.0; v1.0.0 is a deliberate step, made by pushing that t
 - [`docs/spec.md`](docs/spec.md): what AiM must do, as numbered requirements
 - [`docs/adr/`](docs/adr): the decisions behind it and why
 
-JetBrains Mono, bundled in `aim-gui`, is licensed under the SIL Open Font License ([`internal/gui/fonts/OFL.txt`](internal/gui/fonts/OFL.txt)).
+## Licence
+
+AiM is released under the [MIT License](LICENSE). JetBrains Mono, bundled in `aim-gui`, is licensed under the SIL Open Font License ([`internal/gui/fonts/OFL.txt`](internal/gui/fonts/OFL.txt)).
