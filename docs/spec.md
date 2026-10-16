@@ -125,6 +125,7 @@ The timer runs `aim check <App ID>`. Run by hand without arguments, it Checks ev
   Categories: a) "Office;"       b) "Office;Utility;"   c) both: "Office;Utility;"
   ```
   - Option `a` is always the user's existing value and `b` the value from the AppImage. List fields (`Categories`, `MimeType`, `Keywords`) also offer `c`, a merged list of both.
+  - There is **no default**: the user always chooses, and `--yes` can't choose for them.
   - `Exec`, `TryExec` and `Icon` always point at the App Folder. Extra arguments or `env` settings found in the user's `Exec` are carried over as Overrides.
   - Values the user takes from their own entry become Overrides.
   - The final Desktop Entry is shown before it's written.

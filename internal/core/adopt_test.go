@@ -155,12 +155,16 @@ func TestAdoptBuildsTheEntryFromTheChosenValuesAndTheUsersLaunchSettings(t *test
 	}
 }
 
+// consolidated answers the Consolidation of handMadeEntry with Obsidian's
+// Embedded Desktop Entry.
+var consolidated = core.Fixed{"consolidate.Name": {Value: "a"}, "consolidate.Categories": {Value: "b"}}
+
 func TestAdoptDeletesTheUsersOldDesktopEntryByDefault(t *testing.T) {
 	w := newWorld(t)
 	downloaded := knownObsidian(t, w)
 	old := handMadeEntry(t, w, downloaded)
 
-	if _, err := w.core().Adopt(context.Background(), downloaded, obsidianURL, core.Yes); err != nil {
+	if _, err := w.core().Adopt(context.Background(), downloaded, obsidianURL, answers(consolidated)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -174,7 +178,10 @@ func TestAdoptCanKeepTheUsersOldDesktopEntry(t *testing.T) {
 	downloaded := knownObsidian(t, w)
 	old := handMadeEntry(t, w, downloaded)
 
-	if _, err := w.core().Adopt(context.Background(), downloaded, obsidianURL, answers(core.Fixed{"adopt.delete-old": {Value: "no"}})); err != nil {
+	if _, err := w.core().Adopt(context.Background(), downloaded, obsidianURL, answers(core.Fixed{
+		"consolidate.Name": consolidated["consolidate.Name"], "consolidate.Categories": consolidated["consolidate.Categories"],
+		"adopt.delete-old": {Value: "no"},
+	})); err != nil {
 		t.Fatal(err)
 	}
 
@@ -225,5 +232,17 @@ func TestAFirstAdoptSaysItInstalledTheTimers(t *testing.T) {
 
 	if len(out.Notes) != 1 || !strings.Contains(out.Notes[0], "systemd") {
 		t.Fatalf("notes %q; want the note about installing the systemd timers", out.Notes)
+	}
+}
+
+func TestConsolidationChoicesAreNeverMadeForTheUser(t *testing.T) {
+	w := newWorld(t)
+	downloaded := knownObsidian(t, w)
+	handMadeEntry(t, w, downloaded)
+
+	_, err := w.core().Adopt(context.Background(), downloaded, obsidianURL, core.Yes)
+
+	if q := needAnswers(t, err); q.ID != "consolidate.Name" || q.Default != nil || q.YesOK {
+		t.Fatalf("got %+v; want the Name choice with no default, which --yes can't answer", q)
 	}
 }

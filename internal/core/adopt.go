@@ -282,7 +282,8 @@ func consolidate(ctx context.Context, o opts, userFile string, info appimage.Inf
 			Prompt: fmt.Sprintf("Your Desktop Entry %s and the AppImage disagree on %s. Which should AiM use?",
 				filepath.Base(userFile), choice.Key),
 			Options: []Option{{Key: "a", Label: quoted(choice.Yours)}, {Key: "b", Label: quoted(choice.FromAppImage)}},
-			Default: ptr("a"), YesOK: true, Flag: "--keep " + choice.Key + "=a|b|c",
+			// No default: the user always chooses (ADOPT-3).
+			Flag: "--keep " + choice.Key + "=a|b|c",
 		}
 		if choice.Both != "" {
 			q.Options = append(q.Options, Option{Key: "c", Label: "both: " + quoted(choice.Both)})
