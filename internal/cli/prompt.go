@@ -27,6 +27,19 @@ func (p *prompter) Answer(_ context.Context, q core.Question) (core.Answer, bool
 	if q.Problem != "" {
 		fmt.Fprintf(p.out, "! %s\n", q.Problem)
 	}
+	if f := q.Facts; f["file"] != "" {
+		about := f["file"]
+		if f["version"] != "" && f["size"] != "" {
+			about += " (" + f["version"] + ", " + f["size"] + ")"
+		} else if f["version"] != "" {
+			about += " (" + f["version"] + ")"
+		}
+		if f["verified"] == "yes" {
+			fmt.Fprintf(p.out, "%s, verified against its published checksum.\n", about)
+		} else {
+			fmt.Fprintf(p.out, "%s. Its release publishes no checksum, so it isn't verified.\n", about)
+		}
+	}
 	fmt.Fprintln(p.out, q.Prompt)
 	for _, step := range q.Plan {
 		fmt.Fprintf(p.out, "  • %s\n", strings.ReplaceAll(step, "\n", "\n    "))

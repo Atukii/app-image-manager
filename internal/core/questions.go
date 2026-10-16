@@ -6,6 +6,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 
 	"appimage-manager/internal/state"
@@ -27,6 +29,9 @@ type Question struct {
 	YesOK bool `json:"yesOk"`
 	// Flag is the aim flag that answers this Question.
 	Flag string `json:"flag,omitempty"`
+	// Facts are what the user should know when answering, e.g. a
+	// download's "file", "version", "size" and "verified" (yes or no).
+	Facts map[string]string `json:"facts,omitempty"`
 	// Plan is the Removal Plan (or other Plan) a "confirm" Question asks
 	// about.
 	Plan []string `json:"plan,omitempty"`
@@ -163,6 +168,9 @@ func basis(q Question) string {
 	}
 	if q.Default != nil {
 		h.Write([]byte(*q.Default))
+	}
+	for _, k := range slices.Sorted(maps.Keys(q.Facts)) {
+		fmt.Fprintf(h, "%s=%s\x00", k, q.Facts[k])
 	}
 	for _, step := range q.Plan {
 		fmt.Fprintf(h, "%s\x00", step)

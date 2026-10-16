@@ -25,6 +25,9 @@ type CheckResult struct {
 	Result string `json:"result"`
 	Tag    string `json:"tag,omitempty"`
 	Error  string `json:"error,omitempty"`
+	// Reopen is set when the app was running while it was updated: it
+	// uses the new version once reopened.
+	Reopen bool `json:"reopen,omitempty"`
 }
 
 // Check asks each Managed App's Release Source for a newer Release and
@@ -134,68 +137,36 @@ func (c *Core) check(ctx context.Context, app state.App) (CheckResult, error) {
 	if rel.Tag == app.Rejected {
 		return fail(fmt.Errorf("%s %w", rel.Tag, errRejected))
 	}
-	var staged state.Staged
-	if app.Staged != nil && !version.Newer(version.Release{Tag: rel.Tag, Published: rel.Published},
-		version.Release{Tag: app.Staged.Tag, Published: app.Staged.Published}) {
-		// The Staged Update is still the newest Release: use it (SWAP-2).
-		staged = *app.Staged
-	} else {
-		a, err := releaseAsset(rel, app.AssetPattern)
-		if err != nil {
-			return fail(err)
-		}
-		download, err := c.fetch(ctx, opts{}, a)
-		if err != nil {
-			return fail(err)
-		}
-		if staged, err = c.stage(app.ID, download, rel); err != nil {
-			return fail(err)
-		}
-	}
-	if proc.Running(c.appImagePath(app.ID), c.deps.ProcRoot) {
-		c.deps.Notifier.Notify(ctx, Notification{Kind: "staged", App: app.ID,
-			Summary: fmt.Sprintf("%s %s is ready and will be installed after you close it", app.ID, staged.Tag)})
-		result.Result = "staged"
-		return result, nil
-	}
-	if err := c.swap(app.ID, staged); err != nil {
+	a, err := releaseAsset(rel, app.AssetPattern)
+	if err != nil {
 		return fail(err)
 	}
-	c.deps.Notifier.Notify(ctx, Notification{Kind: "installed", App: app.ID,
-		Summary: fmt.Sprintf("%s updated to %s", app.ID, staged.Tag)})
+	download, err := c.fetch(ctx, opts{}, a)
+	if err != nil {
+		return fail(err)
+	}
+	// The app may be running: the Swap is safe anyway (ADR 0009), and the
+	// user is told to reopen it.
+	running := proc.Running(c.appImagePath(app.ID), c.deps.ProcRoot)
+	if err := c.swap(app.ID, download, state.Release{Tag: rel.Tag, Published: rel.Published}); err != nil {
+		return fail(err)
+	}
+	summary := fmt.Sprintf("%s updated to %s", app.ID, rel.Tag)
+	if running {
+		summary += "; reopen it to use the new version"
+		result.Reopen = true
+	}
+	c.deps.Notifier.Notify(ctx, Notification{Kind: "installed", App: app.ID, Summary: summary})
 	result.Result = "installed"
 	return result, nil
 }
 
-// stage moves a verified download into staging as app id's Staged Update,
-// replacing any older one.
-func (c *Core) stage(id, download string, rel source.Release) (state.Staged, error) {
-	dir := filepath.Join(c.deps.Paths.Data, "staging", id)
-	staged := state.Staged{Tag: rel.Tag, Published: rel.Published, Path: filepath.Join(dir, filepath.Base(download))}
+// swap installs the verified AppImage at download as app id's new
+// Version, the Release rel.
+func (c *Core) swap(id, download string, rel state.Release) error {
 	_, err := c.store.Update(func(s *state.State) error {
 		app := s.Apps[id]
-		if err := os.RemoveAll(dir); err != nil {
-			return err
-		}
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			return err
-		}
-		if err := moveFile(download, staged.Path); err != nil {
-			return err
-		}
-		app.Staged = &staged
-		s.Apps[id] = app
-		return nil
-	})
-	return staged, err
-}
-
-// swap replaces app id's installed AppImage with its Staged Update and
-// records the new Version.
-func (c *Core) swap(id string, staged state.Staged) error {
-	_, err := c.store.Update(func(s *state.State) error {
-		app := s.Apps[id]
-		if err := c.swapFiles(&app, staged); err != nil {
+		if err := c.swapFiles(&app, download, rel); err != nil {
 			return err
 		}
 		s.Apps[id] = app
@@ -207,30 +178,53 @@ func (c *Core) swap(id string, staged state.Staged) error {
 	return err
 }
 
-// swapFiles moves staged into place as app's AppImage, keeping the
-// installed one as the Previous Version, rebuilds the icon and Desktop
-// Entry, and updates app. On failure the installed AppImage is restored.
-func (c *Core) swapFiles(app *state.App, staged state.Staged) error {
+// swapFiles replaces app's installed AppImage with the one at src without
+// ever writing into the installed file or leaving its path missing, so a
+// running copy keeps working (SWAP-1, ADR 0009): src becomes a temporary
+// file in the App Folder, the installed file is hard-linked as the
+// Previous Version, and the temporary file is renamed over it. The icon
+// and Desktop Entry are then rebuilt; if that fails, the Previous Version
+// is renamed back.
+func (c *Core) swapFiles(app *state.App, src string, rel state.Release) error {
 	current := c.appImagePath(app.ID)
 	previous := current + ".previous"
-	if err := os.Rename(current, previous); err != nil {
+	incoming := filepath.Join(c.appFolder(app.ID), "."+app.ID+".AppImage.new")
+	if err := moveFile(src, incoming); err != nil {
 		return err
 	}
-	if err := moveFile(staged.Path, current); err != nil {
-		os.Rename(previous, current)
+	if err := os.Chmod(incoming, 0o755); err != nil {
+		os.Remove(incoming)
 		return err
 	}
-	if err := os.Chmod(current, 0o755); err != nil {
+	if err := linkOrCopy(current, previous); err != nil {
+		os.Remove(incoming)
+		return err
+	}
+	if err := os.Rename(incoming, current); err != nil {
+		os.Remove(incoming)
 		return err
 	}
 	if err := c.reintegrate(app); err != nil {
 		os.Rename(previous, current)
+		c.reintegrate(app)
 		return err
 	}
 	app.Previous = &state.Release{Tag: app.Tag, Published: app.Published}
-	app.Tag, app.Published, app.Staged = staged.Tag, staged.Published, nil
+	app.Tag, app.Published = rel.Tag, rel.Published
 	app.Skipped = "" // a newer Release supersedes the Skipped one
 	return nil
+}
+
+// linkOrCopy gives the file at path the extra name link, replacing any
+// file there: a hard link where the filesystem allows, a copy otherwise.
+func linkOrCopy(path, link string) error {
+	if err := os.Remove(link); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	if err := os.Link(path, link); err == nil {
+		return nil
+	}
+	return copyFile(path, link)
 }
 
 // reintegrate rebuilds app's icon (unless the user chose it) and Desktop

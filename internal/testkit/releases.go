@@ -27,6 +27,9 @@ type Releases struct {
 	Failures int
 	// FailWith, when set, makes every Latest lookup fail with it.
 	FailWith error
+	// NoDigests publishes Assets without Digests, as older releases and
+	// Direct URLs have.
+	NoDigests bool
 }
 
 // NewReleases starts a fake Release Source, stopped when the test ends.
@@ -60,10 +63,11 @@ func (r *Releases) Publish(tag string, published time.Time, assets map[string]Ap
 		urlPath := "/download/" + tag + "/" + name
 		r.files[urlPath] = data
 		sum := sha256.Sum256(data)
-		rel.Assets = append(rel.Assets, source.Asset{
-			Name: name, URL: r.Server.URL + urlPath, Size: int64(len(data)),
-			Digest: "sha256:" + hex.EncodeToString(sum[:]),
-		})
+		a := source.Asset{Name: name, URL: r.Server.URL + urlPath, Size: int64(len(data)), Digest: "sha256:" + hex.EncodeToString(sum[:])}
+		if r.NoDigests {
+			a.Digest = ""
+		}
+		rel.Assets = append(rel.Assets, a)
 		contents[name] = data
 	}
 	r.releases = append([]source.Release{rel}, r.releases...)

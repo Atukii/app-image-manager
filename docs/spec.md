@@ -20,7 +20,7 @@ What AiM must do, in the language of [GLOSSARY.md](../GLOSSARY.md). The reasons 
 | Desktop Entry | `~/.local/share/applications/<vendor filename>.desktop`, falling back to `<App ID>.desktop` |
 | Check timers | `~/.config/systemd/user/aim-check@.timer`, `aim-check@.service`, and one drop-in per app under `aim-check@<App ID>.timer.d/` |
 | State | `~/.local/share/aim/apps.json` |
-| Staged Updates | `~/.local/share/aim/staging/<App ID>/` |
+| New version being installed | `~/Applications/<App ID>/.<App ID>.AppImage.new` (same filesystem, so the Swap is one rename) |
 | Config | `~/.config/aim/config.toml` |
 | Tray autostart | `~/.config/autostart/aim-gui.desktop` |
 
@@ -45,7 +45,7 @@ Global flags: `--json` (machine-readable output; the contract the GUI uses), `--
   2. Drop Assets naming another architecture (`aarch64`, `arm64`, `armhf`, `i386`, `i686`).
   3. If exactly one is left, use it. If several are left, ask the user to choose and store an Asset Pattern derived from the choice. If none are left, fail and list what the Release contains.
 - **ADD-4** Proposes an App ID: the repository name, lowercased and slugified, with common suffixes like `-releases` and `-appimage` removed. The user can change it. The prompt must say plainly that the **App ID can't be changed later without Removing and re-adding the app**. An App ID already in use is rejected.
-- **ADD-5** Downloads to staging. If the Release Source publishes a Digest for the Asset, the download must match it, or nothing is installed and the user is told. If there's no Digest, the install goes ahead without one.
+- **ADD-5** Downloads to the download cache. If the Release Source publishes a Digest for the Asset, the download must match it, or nothing is installed and the user is told. If there's no Digest, the install goes ahead without one. Either way the user is told which: the App ID Question carries the download's facts (file, Version, size, verified or not), and the outcome repeats it.
 - **ADD-6** Makes the AppImage executable and moves it into its App Folder.
 - **ADD-7** Extracts the Embedded Desktop Entry and icon without running the app (`--appimage-extract` into a temp directory, then delete the directory). Icon priority: an icon supplied with `--icon <path>` → the embedded icon → AiM's bundled default icon.
 - **ADD-8** Writes the Desktop Entry from the Embedded Desktop Entry, with `Exec`, `TryExec` and `Icon` pointing at the App Folder, plus any Overrides.
@@ -57,7 +57,7 @@ Global flags: `--json` (machine-readable output; the contract the GUI uses), `--
 
 ### `aim list`
 
-- **LIST-1** Shows every Managed App with its App ID, display Name, installed Version, Poll Rate, last Check time and result, next scheduled Check, and whether a Staged Update or Skipped Release exists.
+- **LIST-1** Shows every Managed App with its App ID, display Name, installed Version, Previous Version, Poll Rate, last Check time and result, Skipped Release, Overrides, Release Source, Asset Pattern and Desktop Entry filename, and whether it needs reopening (Reopen).
 
 ### `aim check [<App ID>…]`
 
@@ -67,30 +67,27 @@ The timer runs `aim check <App ID>`. Run by hand without arguments, it Checks ev
 - **CHK-2** GitHub: a Release is newer if its Version is greater under semantic-version comparison (a leading `v` is ignored). If either tag isn't a valid version, a Release is newer if its tag differs from the installed one and it was published later.
 - **CHK-3** Direct URL: there's a newer Release if any of `ETag`, `Last-Modified` or `Content-Length` differs from what was recorded at install.
 - **CHK-4** A Skipped Release is never treated as newer.
-- **CHK-5** If a newer Release exists, it's downloaded and verified (as in `ADD-5`) into staging, replacing any existing Staged Update. Then a Swap is attempted (`SWAP-1`).
+- **CHK-5** If a newer Release exists, it's downloaded, verified (as in `ADD-5`) and Swapped in straight away, whether or not the app is running (ADR 0009).
 - **CHK-6** A failure is retried up to 3 times within the same run, with short waits (about 10s, 30s, 90s). If all attempts fail, the user is notified straight away. A Digest mismatch is not retried. The user is notified immediately, and that Release isn't downloaded again until a newer one appears.
 - **CHK-7** Records the time and result of every Check in state.
 
 ### `aim update [<App ID>…]`
 
-- **UPD-1** Runs a Check immediately, ignoring the Poll Rate, followed by a Swap if possible. If the app is running, it reports that the update is staged and will be applied after the app exits.
+- **UPD-1** Runs a Check immediately, ignoring the Poll Rate. If the app is running, it reports that the update is installed and the app needs reopening.
 
 ### Swap
 
-- **SWAP-1** A Managed App counts as running if any process's executable (`/proc/<pid>/exe`) is its AppImage, or any process runs from the AppImage's FUSE mount (`/tmp/.mount_*` for this file).
-- **SWAP-2** If the app is running, the Staged Update is kept, and later Checks retry the Swap. A Check whose Release is unchanged still tries a pending Swap. AiM never stops or kills an app.
-- **SWAP-3** If the app isn't running:
-  1. The installed AppImage becomes the Previous Version, replacing any older one.
-  2. The Staged Update is moved into place and made executable.
-  3. The Embedded Desktop Entry and icon are extracted again, and the Desktop Entry is rebuilt from them plus the Overrides (ADR 0004). A user-supplied icon stays.
-  4. State is updated.
-- **SWAP-4** Notifications (each can be turned off in config): update installed, update staged because the app is running, Check failed, Digest mismatch.
+- **SWAP-1** A Swap never writes into the installed AppImage. The new AppImage is placed in the App Folder as a temporary file, made executable, the installed file is hard-linked as the Previous Version (replacing any older one), and the new file is renamed over the installed path in one step. The path is never missing or partial, and a running app keeps its old file (ADR 0009).
+- **SWAP-2** A Managed App needs **Reopen** when a process still runs its replaced file (`/proc/<pid>/exe` is the AppImage's path followed by ` (deleted)`). AiM never stops or kills an app.
+- **SWAP-3** After the rename, the Embedded Desktop Entry and icon are read from the new AppImage and the Desktop Entry is rebuilt from them plus the Overrides (ADR 0004). A user-supplied icon stays. If that fails, the Previous Version is renamed back.
+- **SWAP-4** Notifications (each can be turned off in config): updated (saying when the app needs reopening), Check failed, Digest mismatch.
 
 ### `aim rollback <App ID>`
 
-- **RB-1** Requires a Previous Version. Swaps it back (only when the app isn't running, as in `SWAP-2`) and marks the Release being rolled back from as the Skipped Release.
+- **RB-1** Requires a Previous Version. Swaps it back in the same atomic way as `SWAP-1` (also while the app runs) and marks the Release being rolled back from as the Skipped Release.
 - **RB-2** After a Rollback there's no Previous Version until the next Swap.
 - **RB-3** `aim unskip <App ID>` clears the Skipped Release. The next Check may then install it again.
+- **RB-4** `aim skip <App ID> [<version>]` makes a Release, the latest one by default, the Skipped Release so Checks don't install it. Skipping the installed Version is refused; that is a Rollback.
 
 ### `aim edit <App ID>` and `aim set-poll <App ID> <rate>`
 
@@ -103,6 +100,7 @@ The timer runs `aim check <App ID>`. Run by hand without arguments, it Checks ev
 
 - **SCAN-1** Looks for `*.AppImage` (case-insensitive) in `~/Applications`, `~/Downloads`, `~/.local/bin` and `~/AppImages`, skipping Managed Apps and Ignored AppImages.
 - **SCAN-2** For each file found, offers: **Manage** (goes through `aim adopt`), **Leave alone** (saved as an Ignored AppImage and never offered again), or **Skip** (asked again on the next Scan).
+- **SCAN-4** `aim inspect <path>` reports the same suggestion for any one AppImage, for adding a file chosen outside the scanned folders.
 - **SCAN-3** For Manage, suggests a Source URL from the update information embedded in the AppImage (e.g. `gh-releases-zsync|owner|repo|…`) when there is any. The user confirms or types one.
 
 ### `aim adopt <path> <Source URL>`
@@ -134,7 +132,7 @@ The timer runs `aim check <App ID>`. Run by hand without arguments, it Checks ev
 
 ### `aim remove <App ID>`
 
-- **RM-1** Shows a Removal Plan and waits for confirmation. Then it stops, disables and deletes the app's timer instance and drop-in, deletes the Desktop Entry, the App Folder and any Staged Update, and removes the app from state.
+- **RM-1** Shows a Removal Plan and waits for confirmation. Then it stops, disables and deletes the app's timer instance and drop-in, deletes the Desktop Entry and the App Folder, and removes the app from state.
 
 ### `aim unmanage <App ID>`
 
@@ -142,7 +140,6 @@ The timer runs `aim check <App ID>`. Run by hand without arguments, it Checks ev
 - **UNM-2** Stops and disables `aim-check@<App ID>.timer`, deletes its drop-in, and reloads systemd. If this was the last Managed App, it also deletes the timer template units.
 - **UNM-3** Removes the `X-AiM-*` keys from the Desktop Entry and keeps everything else. Overrides are already written into the file.
 - **UNM-4** Asks whether to delete the Previous Version (default yes).
-- **UNM-5** If there's a Staged Update, asks whether to install it now (only offered when the app isn't running) or discard it (default discard).
 - **UNM-6** Leaves the App Folder where it is by default. Optionally moves to the standard layout instead: the AppImage to `~/Applications/<Name>.AppImage`, the icon to `~/.local/share/icons/hicolor/<size>/apps/`, and the Desktop Entry's paths rewritten to match.
 - **UNM-7** Removes the app from state.
 
@@ -167,7 +164,7 @@ The timer runs `aim check <App ID>`. Run by hand without arguments, it Checks ev
 
 ## Config (`~/.config/aim/config.toml`)
 
-- **CFG-1** `default_poll` (default `weekly`), `github_token` (optional; the `GITHUB_TOKEN` environment variable takes precedence), and `[notify]` toggles for `installed`, `staged`, `failed`, `digest_mismatch` (all on by default).
+- **CFG-1** `default_poll` (default `weekly`), `github_token` (optional; the `GITHUB_TOKEN` environment variable takes precedence), and `[notify]` toggles for `installed`, `failed`, `digest_mismatch` (all on by default).
 
 ## Timers
 
@@ -184,7 +181,7 @@ The timer runs `aim check <App ID>`. Run by hand without arguments, it Checks ev
 - **GUI-2** Each app has a manage section: icon, Overrides with "reset to embedded", Poll Rate, Update now, Rollback, Unskip, Remove, Stop managing. Remove and Stop managing show the Removal Plan.
 - **GUI-3** Consolidation uses the same a/b/c options as `ADOPT-3`, as radio buttons, with a preview of the final Desktop Entry.
 - **GUI-4** Settings: config values, the autostart toggle, and "Uninstall AiM" (with the Removal Plan, the keep-config question with no preselected answer, and the binary removal instructions).
-- **GUI-5** Tray icon: shows when updates are staged or Checks have failed, with menu items Check all now, Open AiM and Quit. It starts at login through the autostart entry, which the user can turn off.
+- **GUI-5** Tray icon: shows when apps need reopening after an update or Checks have failed, with menu items Check all now, Open AiM and Quit. It starts at login through the autostart entry, which the user can turn off.
 - **GUI-6** The GUI never schedules Checks and never writes AiM state or files itself. Everything goes through `aim … --json`.
 
 ## Build and release

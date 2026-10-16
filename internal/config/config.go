@@ -23,7 +23,6 @@ type Config struct {
 // Notify turns each kind of notification on or off.
 type Notify struct {
 	Installed      bool `toml:"installed"`
-	Staged         bool `toml:"staged"`
 	Failed         bool `toml:"failed"`
 	DigestMismatch bool `toml:"digest_mismatch"`
 }
@@ -31,7 +30,7 @@ type Notify struct {
 // Load reads the config file at path; a missing file gives the defaults.
 // getenv reads environment variables.
 func Load(path string, getenv func(string) string) (Config, error) {
-	c := Config{DefaultPoll: state.Weekly, Notify: Notify{Installed: true, Staged: true, Failed: true, DigestMismatch: true}}
+	c := Config{DefaultPoll: state.Weekly, Notify: Notify{Installed: true, Failed: true, DigestMismatch: true}}
 	if _, err := toml.DecodeFile(path, &c); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return Config{}, fmt.Errorf("%s: %w", path, err)
 	}
@@ -49,8 +48,6 @@ func (n Notify) Wants(kind string) bool {
 	switch kind {
 	case "installed":
 		return n.Installed
-	case "staged":
-		return n.Staged
 	case "failed":
 		return n.Failed
 	case "digest-mismatch":

@@ -113,3 +113,18 @@ func (w *world) start(appID string) (stop func()) {
 
 // tamper changes the bytes served for a published Asset.
 func (w *world) tamper(tag, name string) { w.source.Tamper(tag, name) }
+
+// startReplaced makes a process run appID's AppImage as it was before a
+// Swap: Linux shows such an exe as "<path> (deleted)". It returns a
+// function that stops the process.
+func (w *world) startReplaced(appID string) (stop func()) {
+	w.t.Helper()
+	dir := w.path(fmt.Sprintf("proc/%d", 2000+len(appID)))
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		w.t.Fatal(err)
+	}
+	if err := os.Symlink(w.path("Applications/"+appID+"/"+appID+".AppImage")+" (deleted)", filepath.Join(dir, "exe")); err != nil {
+		w.t.Fatal(err)
+	}
+	return func() { os.RemoveAll(dir) }
+}

@@ -328,12 +328,14 @@ Getting apps
   adopt <appimage> <url>       let AiM manage an AppImage you already have
   scan                         find AppImages AiM doesn't manage yet, and choose what to do with each
   ignore <appimage>            never offer an AppImage in scan again
+  inspect <appimage>           show an AppImage's suggested source
 
 Keeping them updated
   list                         show your apps, their versions and update checks
   check [app-id…]              check for and install updates (what the timers run)
   update [app-id…]             the same, by hand
   rollback <app-id>            go back to the previous version, skipping the one rolled back from
+  skip <app-id> [version]      don't install a release (the latest by default)
   unskip <app-id>              allow a skipped release again
   set-poll <app-id> <rate>     check daily, weekly, monthly or never
 

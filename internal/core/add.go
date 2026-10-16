@@ -5,6 +5,7 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -74,7 +75,8 @@ func (c *Core) Add(ctx context.Context, sourceURL string, options ...Opt) (Outco
 	if err != nil {
 		return Outcome{}, err
 	}
-	id, err := askAppID(ctx, o, suggestID(ref, chosen.Name), current)
+	facts := downloadFacts(chosen, rel.Tag)
+	id, err := askAppID(ctx, o, suggestID(ref, chosen.Name), current, facts)
 	if err != nil {
 		return Outcome{}, err
 	}
@@ -115,10 +117,30 @@ func (c *Core) Add(ctx context.Context, sourceURL string, options ...Opt) (Outco
 		return out, err
 	}
 	c.deps.RefreshMenu(c.deps.Paths.Applications)
+	out.Notes = append(out.Notes, verifiedNote(facts))
 	if firstTimer {
 		out.Notes = append(out.Notes, c.timersNote())
 	}
 	return out, nil
+}
+
+// downloadFacts describes a downloaded Asset for the user (ADD-5).
+func downloadFacts(a source.Asset, tag string) map[string]string {
+	verified := "no"
+	if a.Digest != "" {
+		verified = "yes" // fetch only keeps downloads that match their Digest
+	}
+	return map[string]string{
+		"file": a.Name, "version": tag, "size": fmt.Sprintf("%.1f MB", float64(a.Size)/1e6), "verified": verified,
+	}
+}
+
+// verifiedNote tells the user whether the download was verified.
+func verifiedNote(facts map[string]string) string {
+	if facts["verified"] == "yes" {
+		return "Verified " + facts["file"] + " against the checksum its release publishes."
+	}
+	return "The release publishes no checksum for " + facts["file"] + ", so AiM couldn't verify the download."
 }
 
 // timersNote tells the user the first Managed App installed AiM's timers
@@ -196,10 +218,12 @@ func (c *Core) fetch(ctx context.Context, o opts, a source.Asset) (string, error
 // ErrAppIDTaken means another Managed App already has the App ID.
 var ErrAppIDTaken = errors.New("already in use")
 
-// askAppID asks for the new app's permanent App ID.
-func askAppID(ctx context.Context, o opts, suggested string, current state.State) (string, error) {
+// askAppID asks for the new app's permanent App ID, showing facts about
+// what is being installed.
+func askAppID(ctx context.Context, o opts, suggested string, current state.State, facts map[string]string) (string, error) {
 	q := Question{
-		ID: "app-id",
+		Facts: facts,
+		ID:    "app-id",
 		Prompt: "App ID (names its folder and files; it can't be changed later " +
 			"without removing and re-adding the app)",
 		Default: ptr(suggested), YesOK: true, Flag: "--app-id",
@@ -391,12 +415,32 @@ func moveFile(src, dst string) error {
 	if err := os.Rename(src, dst); err == nil {
 		return nil
 	}
-	data, err := os.ReadFile(src)
-	if err != nil {
-		return err
-	}
-	if err := os.WriteFile(dst, data, 0o755); err != nil {
+	if err := copyFile(src, dst); err != nil {
 		return err
 	}
 	return os.Remove(src)
+}
+
+// copyFile copies src to dst and flushes it to disk.
+func copyFile(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o755)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(out, in); err != nil {
+		out.Close()
+		os.Remove(dst)
+		return err
+	}
+	if err := out.Sync(); err != nil {
+		out.Close()
+		os.Remove(dst)
+		return err
+	}
+	return out.Close()
 }

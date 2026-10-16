@@ -81,3 +81,17 @@ func (c *Core) Ignore(ctx context.Context, path string) error {
 	})
 	return err
 }
+
+// Inspect reports what Scan would about one AppImage anywhere, including
+// its suggested Source URL (SCAN-4). It fails for files that aren't
+// AppImages AiM can read.
+func (c *Core) Inspect(ctx context.Context, path string) (Found, error) {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return Found{}, err
+	}
+	if _, err := appimage.Inspect(abs); err != nil {
+		return Found{}, err
+	}
+	return Found{Path: abs, SourceURL: suggestSource(abs)}, nil
+}

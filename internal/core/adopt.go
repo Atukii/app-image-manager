@@ -68,7 +68,11 @@ func (c *Core) Adopt(ctx context.Context, path, sourceURL string, options ...Opt
 	if err != nil {
 		return Outcome{}, err
 	}
-	id, err := askAppID(ctx, o, suggestID(ref, assetName), st)
+	facts := map[string]string{"file": filepath.Base(path), "version": rel.Tag, "verified": "no"}
+	if found {
+		facts["verified"] = "yes" // its checksum matched a release's
+	}
+	id, err := askAppID(ctx, o, suggestID(ref, assetName), st, facts)
 	if err != nil {
 		return Outcome{}, err
 	}

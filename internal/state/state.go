@@ -52,8 +52,6 @@ type App struct {
 	UserIcon bool `json:"userIcon,omitempty"`
 	// Previous is the Release of the Previous Version, kept for Rollback.
 	Previous *Release `json:"previous,omitempty"`
-	// Staged is the Staged Update waiting for the app to stop running.
-	Staged *Staged `json:"staged,omitempty"`
 	// Skipped is the Skipped Release: the tag rolled back from, which Checks
 	// ignore until a newer Release appears or the user unskips it.
 	Skipped string `json:"skipped,omitempty"`
@@ -75,13 +73,6 @@ type LastCheck struct {
 type Release struct {
 	Tag       string    `json:"tag"`
 	Published time.Time `json:"published"`
-}
-
-// Staged is a downloaded, verified AppImage waiting to be swapped in.
-type Staged struct {
-	Tag       string    `json:"tag"`
-	Published time.Time `json:"published"`
-	Path      string    `json:"path"`
 }
 
 // ErrLocked means another aim process held the state lock for longer than

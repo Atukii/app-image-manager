@@ -69,6 +69,35 @@ func init() {
 		}
 	}
 	commands["rollback"] = byID("rollback <app-id>", "Rolled back", (*core.Core).Rollback)
+	commands["skip"] = command{
+		usage: "skip <app-id> [version]", minArgs: 1, maxArgs: 2,
+		run: func(ctx context.Context, inv *invocation, args []string) (any, error) {
+			version := ""
+			if len(args) == 2 {
+				version = args[1]
+			}
+			tag, err := inv.env.Core.Skip(ctx, args[0], version)
+			return map[string]string{"app": args[0], "skipped": tag}, err
+		},
+		print: func(inv *invocation, result any) {
+			r := result.(map[string]string)
+			fmt.Fprintf(inv.env.Stdout, "%s %s will be skipped (aim unskip %s to allow it).\n", r["app"], r["skipped"], r["app"])
+		},
+	}
+	commands["inspect"] = command{
+		usage: "inspect <appimage>", minArgs: 1, maxArgs: 1,
+		run: func(ctx context.Context, inv *invocation, args []string) (any, error) {
+			return inv.env.Core.Inspect(ctx, args[0])
+		},
+		print: func(inv *invocation, result any) {
+			f := result.(core.Found)
+			if f.SourceURL == "" {
+				fmt.Fprintf(inv.env.Stdout, "%s is an AppImage without update information; add it with aim adopt %s <source-url>.\n", f.Path, f.Path)
+				return
+			}
+			fmt.Fprintf(inv.env.Stdout, "%s\nsuggested source: %s\n", f.Path, f.SourceURL)
+		},
+	}
 	commands["unskip"] = byID("unskip <app-id>", "Unskipped", func(c *core.Core, ctx context.Context, id string) (core.Outcome, error) {
 		return core.Outcome{App: id}, c.Unskip(ctx, id)
 	})
@@ -125,7 +154,7 @@ func init() {
 	}
 
 	commands["unmanage"] = command{
-		usage:   "unmanage <app-id> [--previous delete|keep] [--staged discard|install] [--layout keep|standard] [--yes] [--dry-run]",
+		usage:   "unmanage <app-id> [--previous delete|keep] [--layout keep|standard] [--yes] [--dry-run]",
 		minArgs: 1, maxArgs: 1,
 		flags: unmanageFlags,
 		run: func(ctx context.Context, inv *invocation, args []string) (any, error) {
@@ -181,7 +210,6 @@ func init() {
 
 func unmanageFlags(fs *flag.FlagSet, inv *invocation) {
 	inv.answer(fs, "previous", "unmanage.previous", "delete or keep the Previous Version")
-	inv.answer(fs, "staged", "unmanage.staged", "discard a Staged Update, or install it first")
 	inv.answer(fs, "layout", "unmanage.layout", "keep the files where they are, or move them to the standard layout")
 }
 
@@ -224,8 +252,8 @@ func printList(inv *invocation, result any) {
 			last = a.LastCheck.At.Local().Format(time.DateTime) + " " + a.LastCheck.Result
 		}
 		notes := ""
-		if a.Staged != "" {
-			notes += a.Staged + " waits for the app to close. "
+		if a.Reopen {
+			notes += "Reopen to use " + a.Version + ". "
 		}
 		if a.Skipped != "" {
 			notes += a.Skipped + " skipped (aim unskip " + a.ID + "). "
@@ -240,9 +268,11 @@ func printChecks(inv *invocation, result any) {
 		w := inv.env.Stdout
 		switch r.Result {
 		case "installed":
-			fmt.Fprintf(w, "%s: updated to %s\n", r.App, r.Tag)
-		case "staged":
-			fmt.Fprintf(w, "%s: %s is ready and will be installed after you close the app\n", r.App, r.Tag)
+			if r.Reopen {
+				fmt.Fprintf(w, "%s: updated to %s; reopen it to use the new version\n", r.App, r.Tag)
+			} else {
+				fmt.Fprintf(w, "%s: updated to %s\n", r.App, r.Tag)
+			}
 		case "up-to-date":
 			fmt.Fprintf(w, "%s: up to date (%s)\n", r.App, r.Tag)
 		case "skipped":

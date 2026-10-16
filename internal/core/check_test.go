@@ -65,63 +65,6 @@ func TestASwapKeepsThePreviousVersion(t *testing.T) {
 	}
 }
 
-func TestCheckStagesTheUpdateWhileTheAppIsRunning(t *testing.T) {
-	w := newWorld(t)
-	addObsidian(t, w, obsidianImage)
-	before, _ := os.ReadFile(w.path("Applications/obsidian/obsidian.AppImage"))
-	w.publish("v1.10.0", oct10, map[string]testkit.AppImage{"Obsidian-1.10.0.AppImage": obsidian110})
-	w.start("obsidian")
-
-	results, _ := w.core().Check(context.Background(), "obsidian")
-
-	after, _ := os.ReadFile(w.path("Applications/obsidian/obsidian.AppImage"))
-	if results[0].Result != "staged" || string(after) != string(before) {
-		t.Fatalf("got %+v, installed file changed %v; want staged and the running AppImage untouched", results, string(after) != string(before))
-	}
-	if len(w.notified) != 1 || w.notified[0].Kind != "staged" {
-		t.Fatalf("notified %+v; want one staged notification", w.notified)
-	}
-}
-
-func TestTheNextCheckAfterTheAppClosesSwapsInTheStagedUpdate(t *testing.T) {
-	w := newWorld(t)
-	addObsidian(t, w, obsidianImage)
-	contents := w.publish("v1.10.0", oct10, map[string]testkit.AppImage{"Obsidian-1.10.0.AppImage": obsidian110})
-	stop := w.start("obsidian")
-	ctx := context.Background()
-	w.core().Check(ctx, "obsidian")
-	stop()
-	downloadsBefore := w.source.Downloads
-
-	results, _ := w.core().Check(ctx, "obsidian")
-
-	installed, _ := os.ReadFile(w.path("Applications/obsidian/obsidian.AppImage"))
-	if results[0].Result != "installed" || string(installed) != string(contents["Obsidian-1.10.0.AppImage"]) || w.source.Downloads != downloadsBefore {
-		t.Fatalf("got %+v, %d more downloads; want the staged v1.10.0 installed without downloading again",
-			results, w.source.Downloads-downloadsBefore)
-	}
-}
-
-func TestANewerReleaseReplacesTheStagedUpdate(t *testing.T) {
-	w := newWorld(t)
-	addObsidian(t, w, obsidianImage)
-	ctx := context.Background()
-	stop := w.start("obsidian")
-	w.publish("v1.10.0", oct10, map[string]testkit.AppImage{"Obsidian-1.10.0.AppImage": obsidian110})
-	w.core().Check(ctx, "obsidian")
-	contents := w.publish("v1.10.1", oct10.Add(48*time.Hour), map[string]testkit.AppImage{"Obsidian-1.10.1.AppImage": obsidian110})
-	w.core().Check(ctx, "obsidian")
-	stop()
-
-	w.core().Check(ctx, "obsidian")
-
-	installed, _ := os.ReadFile(w.path("Applications/obsidian/obsidian.AppImage"))
-	staging, _ := os.ReadDir(w.path(".local/share/aim/staging/obsidian"))
-	if string(installed) != string(contents["Obsidian-1.10.1.AppImage"]) || len(staging) != 0 {
-		t.Fatalf("staging left %v; want v1.10.1 installed and nothing left staged", staging)
-	}
-}
-
 func TestCheckNotifiesWhenItInstallsAnUpdate(t *testing.T) {
 	w := newWorld(t)
 	addObsidian(t, w, obsidianImage)
@@ -235,7 +178,41 @@ func TestCheckingEveryAppRecordsEachResultForList(t *testing.T) {
 	}
 
 	apps, _ := w.core().List(ctx)
-	if apps[0].LastCheck == nil || !apps[0].LastCheck.At.Equal(w.now) || apps[0].LastCheck.Result != "staged" || apps[0].Staged != "v1.10.0" {
-		t.Fatalf("got %+v; want the staged result of the Check at %s and v1.10.0 shown as staged", apps[0], w.now)
+	if apps[0].LastCheck == nil || !apps[0].LastCheck.At.Equal(w.now) || apps[0].LastCheck.Result != "installed" {
+		t.Fatalf("got %+v; want the installed result of the Check at %s", apps[0], w.now)
+	}
+}
+
+func TestCheckInstallsTheUpdateEvenWhileTheAppIsRunning(t *testing.T) {
+	w := newWorld(t)
+	addObsidian(t, w, obsidianImage)
+	contents := w.publish("v1.10.0", oct10, map[string]testkit.AppImage{"Obsidian-1.10.0.AppImage": obsidian110})
+	w.start("obsidian")
+
+	results, _ := w.core().Check(context.Background(), "obsidian")
+
+	installed, _ := os.ReadFile(w.path("Applications/obsidian/obsidian.AppImage"))
+	if results[0].Result != "installed" || !results[0].Reopen || string(installed) != string(contents["Obsidian-1.10.0.AppImage"]) {
+		t.Fatalf("got %+v; want v1.10.0 installed while Obsidian runs, needing a reopen (ADR 0009)", results)
+	}
+	if len(w.notified) != 1 || w.notified[0].Kind != "installed" || !strings.Contains(w.notified[0].Summary, "reopen") {
+		t.Fatalf("notified %+v; want one installed notification asking to reopen Obsidian", w.notified)
+	}
+}
+
+func TestListSaysReopenWhileTheOldVersionStillRuns(t *testing.T) {
+	w := newWorld(t)
+	updatedObsidian(t, w)
+	stop := w.startReplaced("obsidian")
+	ctx := context.Background()
+
+	apps, _ := w.core().List(ctx)
+	if !apps[0].Reopen {
+		t.Fatalf("got %+v; want Reopen while v1.9.0 still runs", apps[0])
+	}
+
+	stop()
+	if apps, _ := w.core().List(ctx); apps[0].Reopen {
+		t.Fatal("want Reopen cleared once the old version stopped")
 	}
 }

@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"appimage-manager/internal/desktop"
-	"appimage-manager/internal/proc"
 	"appimage-manager/internal/state"
 )
 
@@ -42,42 +41,11 @@ func (c *Core) unmanagePlan(ctx context.Context, o opts, app state.App, suffix s
 	plan := Plan{
 		{Describe: fmt.Sprintf("stop and delete aim-check@%s.timer", id), do: func() error { return c.scheduler.Remove(ctx, id) }},
 	}
-	installing := false
-	if app.Staged != nil {
-		staged := *app.Staged
-		options := []Option{{Key: "discard", Label: "discard it"}}
-		if !proc.Running(c.appImagePath(id), c.deps.ProcRoot) {
-			options = append(options, Option{Key: "install", Label: "install it now"})
-		}
-		answer, err := o.ask(ctx, Question{
-			ID:      "unmanage.staged" + suffix,
-			Prompt:  fmt.Sprintf("%s %s is downloaded but not installed yet.", id, staged.Tag),
-			Options: options, Default: ptr("discard"), YesOK: true, Flag: "--staged",
-		})
-		if err != nil {
-			return nil, err
-		}
-		if answer == "install" && len(options) == 2 {
-			installing = true
-			plan = append(plan, Step{Describe: fmt.Sprintf("install %s %s", id, staged.Tag), do: func() error {
-				installing := app
-				return c.swapFiles(&installing, staged)
-			}})
-		}
-		staging := filepath.Join(c.deps.Paths.Data, "staging", id)
-		plan = append(plan, Step{Describe: "delete staging folder " + staging, do: func() error { return os.RemoveAll(staging) }})
-	}
-	previous, previousTag := c.appImagePath(id)+".previous", ""
+	previous := c.appImagePath(id) + ".previous"
 	if app.Previous != nil {
-		previousTag = app.Previous.Tag
-	}
-	if installing {
-		previousTag = app.Tag // installing the Staged Update replaces it
-	}
-	if previousTag != "" {
 		answer, err := o.ask(ctx, Question{
 			ID:      "unmanage.previous" + suffix,
-			Prompt:  fmt.Sprintf("%s keeps %s as its Previous Version. Delete it?", id, previousTag),
+			Prompt:  fmt.Sprintf("%s keeps %s as its Previous Version. Delete it?", id, app.Previous.Tag),
 			Options: []Option{{Key: "delete", Label: "delete " + previous}, {Key: "keep", Label: "keep it"}},
 			Default: ptr("delete"), YesOK: true, Flag: "--previous",
 		})

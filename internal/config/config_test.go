@@ -17,7 +17,7 @@ func TestAMissingFileGivesTheDefaults(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	want := config.Config{DefaultPoll: state.Weekly, Notify: config.Notify{Installed: true, Staged: true, Failed: true, DigestMismatch: true}}
+	want := config.Config{DefaultPoll: state.Weekly, Notify: config.Notify{Installed: true, Failed: true, DigestMismatch: true}}
 	if got != want {
 		t.Fatalf("got %+v\nwant %+v", got, want)
 	}

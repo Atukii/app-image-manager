@@ -79,3 +79,19 @@ func TestAnIgnoredAppImageIsNotOfferedAgain(t *testing.T) {
 		t.Fatalf("got %q; want the ignored AppImage left out", got)
 	}
 }
+
+func TestInspectSuggestsASourceForAnyAppImage(t *testing.T) {
+	w := newWorld(t)
+	withUpdateInfo := obsidianImage
+	withUpdateInfo.UpdateInfo = "gh-releases-zsync|obsidianmd|obsidian-releases|latest|Obsidian-*.AppImage.zsync"
+	elsewhere := withUpdateInfo.Build(t) // outside the scanned folders
+
+	got, err := w.core().Inspect(context.Background(), elsewhere)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got.Path != elsewhere || got.SourceURL != "https://github.com/obsidianmd/obsidian-releases" {
+		t.Fatalf("got %+v; want the GitHub repository suggested", got)
+	}
+}

@@ -238,3 +238,34 @@ func TestScanCanManageWhatItFinds(t *testing.T) {
 		t.Fatalf("exit %d, stderr:\n%s\nlist:\n%s\nwant obsidian adopted through scan", code, stderr, listed)
 	}
 }
+
+func TestSkipAndInspect(t *testing.T) {
+	f := added(t)
+	f.releases.Publish("v1.10.0", time.Date(2026, 10, 10, 0, 0, 0, 0, time.UTC),
+		map[string]testkit.AppImage{"Obsidian-1.10.0.AppImage": obsidianImage})
+
+	code, stdout, stderr := f.run("", "skip", "obsidian")
+	if code != 0 || !strings.Contains(stdout, "v1.10.0") {
+		t.Fatalf("skip: exit %d, stdout %q, stderr %q; want v1.10.0 skipped", code, stdout, stderr)
+	}
+	if _, stdout, _ := f.run("", "check", "obsidian"); !strings.Contains(stdout, "skipped") {
+		t.Fatalf("check after skip: %q; want v1.10.0 skipped", stdout)
+	}
+
+	withInfo := obsidianImage
+	withInfo.UpdateInfo = "gh-releases-zsync|obsidianmd|obsidian-releases|latest|Obsidian-*.AppImage.zsync"
+	code, stdout, _ = f.run("", "inspect", withInfo.Build(t))
+	if code != 0 || !strings.Contains(stdout, "https://github.com/obsidianmd/obsidian-releases") {
+		t.Fatalf("inspect: exit %d, stdout %q; want the suggested source", code, stdout)
+	}
+}
+
+func TestTheAppIDPromptSaysWhatWasDownloaded(t *testing.T) {
+	f := newFixture(t)
+
+	_, _, stderr := f.run("notes\n", "add", obsidianURL)
+
+	if !strings.Contains(stderr, "Obsidian-1.9.0.AppImage") || !strings.Contains(stderr, "verified") {
+		t.Fatalf("stderr:\n%s\nwant the downloaded file named and said to be verified", stderr)
+	}
+}

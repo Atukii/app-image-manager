@@ -62,3 +62,16 @@ func TestNotRunningWhenOnlyOtherAppsAre(t *testing.T) {
 		t.Fatal("want obsidian not running")
 	}
 }
+
+func TestRunningAReplacedFileOnlyWhenTheProcessUsesTheOldFile(t *testing.T) {
+	root := t.TempDir()
+	process(t, root, "200", obsidian, "")
+	if proc.RunningReplaced(obsidian, root) {
+		t.Fatal("a process running the current file doesn't need reopening")
+	}
+
+	process(t, root, "201", obsidian+" (deleted)", "")
+	if !proc.RunningReplaced(obsidian, root) {
+		t.Fatal("want a process still running the replaced file to need reopening")
+	}
+}

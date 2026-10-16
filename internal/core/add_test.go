@@ -112,7 +112,10 @@ func TestListShowsTheAddedApp(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	want := []core.AppStatus{{ID: "obsidian", Name: "Obsidian", Version: "v1.9.0", Poll: state.Weekly}}
+	want := []core.AppStatus{{
+		ID: "obsidian", Name: "Obsidian", Version: "v1.9.0", Poll: state.Weekly,
+		Source: obsidianURL, AssetPattern: "Obsidian-*.AppImage", DesktopFile: "md.obsidian.Obsidian.desktop",
+	}}
 	if !reflect.DeepEqual(apps, want) {
 		t.Fatalf("got %+v\nwant %+v", apps, want)
 	}
@@ -132,5 +135,19 @@ func TestAFailedAddLeavesNothingBehind(t *testing.T) {
 	if err == nil || len(apps) != 0 || folderErr == nil || entryErr == nil {
 		t.Fatalf("error %v, apps %v, folder left %v, entry left %v; want the error and nothing left",
 			err, apps, folderErr == nil, entryErr == nil)
+	}
+}
+
+func TestListShowsWhatTheAppPanelNeeds(t *testing.T) {
+	w := newWorld(t)
+	addObsidian(t, w, obsidianImage)
+	w.publish("v1.10.0", oct10, map[string]testkit.AppImage{"Obsidian-1.10.0.AppImage": obsidian110})
+	w.core().Check(context.Background(), "obsidian")
+
+	apps, _ := w.core().List(context.Background())
+
+	a := apps[0]
+	if a.Previous != "v1.9.0" || a.Source != obsidianURL || a.AssetPattern != "Obsidian-*.AppImage" || a.DesktopFile != "md.obsidian.Obsidian.desktop" {
+		t.Fatalf("got %+v; want previous v1.9.0, its source, file pattern and Desktop Entry filename", a)
 	}
 }

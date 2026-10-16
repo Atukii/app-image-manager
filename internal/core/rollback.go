@@ -6,13 +6,8 @@ import (
 	"fmt"
 	"os"
 
-	"appimage-manager/internal/proc"
 	"appimage-manager/internal/state"
 )
-
-// ErrRunning means the Managed App is running, so its AppImage can't be
-// swapped (ADR 0005).
-var ErrRunning = errors.New("the app is running; close it and try again")
 
 // ErrNoPreviousVersion means there is no Previous Version to roll back to.
 var ErrNoPreviousVersion = errors.New("no previous version to roll back to")
@@ -28,16 +23,16 @@ func (c *Core) Rollback(ctx context.Context, id string) (Outcome, error) {
 		if app.Previous == nil {
 			return fmt.Errorf("%s: %w", id, ErrNoPreviousVersion)
 		}
+		// Like a Swap, never leave the path missing, so a running app is
+		// unaffected (RB-1, ADR 0009): keep a second name for the current
+		// file, then rename the Previous Version over the path.
 		current := c.appImagePath(id)
-		if proc.Running(current, c.deps.ProcRoot) {
-			return fmt.Errorf("%s: %w", id, ErrRunning)
-		}
 		previous, aside := current+".previous", current+".rollback"
-		if err := os.Rename(current, aside); err != nil {
+		if err := linkOrCopy(current, aside); err != nil {
 			return err
 		}
 		if err := os.Rename(previous, current); err != nil {
-			os.Rename(aside, current)
+			os.Remove(aside)
 			return err
 		}
 		if err := c.reintegrate(&app); err != nil {
@@ -68,4 +63,43 @@ func (c *Core) Unskip(ctx context.Context, id string) error {
 		return nil
 	})
 	return err
+}
+
+// ErrSkipInstalled means the release to skip is the installed one; going
+// back from it is a Rollback.
+var ErrSkipInstalled = errors.New("that version is installed; roll back to skip it")
+
+// Skip makes a release of a Managed App, the latest one when tag is empty,
+// its Skipped Release, so Checks don't install it (RB-4). It returns the
+// skipped tag.
+func (c *Core) Skip(ctx context.Context, id, tag string) (string, error) {
+	st, err := c.store.Load()
+	if err != nil {
+		return "", err
+	}
+	app, ok := st.Apps[id]
+	if !ok {
+		return "", fmt.Errorf("%q is not a Managed App", id)
+	}
+	if tag == "" {
+		src, err := c.deps.Sources(app.Source)
+		if err != nil {
+			return "", err
+		}
+		rel, err := src.Latest(ctx)
+		if err != nil {
+			return "", fmt.Errorf("finding the latest release: %w", err)
+		}
+		tag = rel.Tag
+	}
+	if tag == app.Tag {
+		return "", fmt.Errorf("%s %s: %w", id, tag, ErrSkipInstalled)
+	}
+	_, err = c.store.Update(func(s *state.State) error {
+		app := s.Apps[id]
+		app.Skipped = tag
+		s.Apps[id] = app
+		return nil
+	})
+	return tag, err
 }

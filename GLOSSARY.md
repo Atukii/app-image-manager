@@ -65,19 +65,19 @@ How often a Managed App is Checked: daily, weekly, monthly or never.
 _Avoid_: frequency, interval, schedule
 
 **Check**:
-Asking a Managed App's Release Source whether a newer Release exists, and staging it if so.
+Asking a Managed App's Release Source whether a newer Release exists, and Swapping it in if so.
 _Avoid_: poll, update (when only checking is meant)
 
-**Staged Update**:
-A downloaded, verified AppImage waiting to replace the installed one; a Managed App has at most one, always the newest Release found.
-_Avoid_: pending update, download
-
 **Swap**:
-Replacing a Managed App's installed AppImage with its Staged Update, done only while the app is not running.
+Atomically replacing a Managed App's installed AppImage with a newer, verified one, even while the app runs; the running app keeps the old version until it is reopened.
 _Avoid_: install, upgrade, replace
 
+**Reopen**:
+The state of a Managed App that was Swapped while running: the new Version is installed, but the open app is still the old one until the user reopens it.
+_Avoid_: restart required, pending, staged
+
 **Update**:
-A Check followed immediately by a Swap when possible; the user-facing "get me the latest" action.
+A Check run by the user rather than by a timer; the user-facing "get me the latest" action.
 _Avoid_: upgrade, refresh
 
 **Rollback**:
@@ -85,7 +85,7 @@ Swapping a Managed App back to its Previous Version.
 _Avoid_: revert, downgrade
 
 **Skipped Release**:
-A Release the user rolled back from, which Checks ignore until a newer Release appears or the user unskips it.
+A Release the user rolled back from or chose to skip, which Checks ignore until a newer Release appears or the user unskips it.
 _Avoid_: blocked version, pinned version
 
 ## Desktop integration

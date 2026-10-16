@@ -84,17 +84,17 @@ func TestUnskipLetsTheNextCheckInstallTheSkippedRelease(t *testing.T) {
 	}
 }
 
-func TestRollbackRefusesWhileTheAppIsRunning(t *testing.T) {
+func TestRollbackWorksWhileTheAppIsRunning(t *testing.T) {
 	w := newWorld(t)
-	updatedObsidian(t, w)
-	current, _ := os.ReadFile(w.path("Applications/obsidian/obsidian.AppImage"))
+	before := updatedObsidian(t, w)
 	w.start("obsidian")
 
-	_, err := w.core().Rollback(context.Background(), "obsidian")
+	if _, err := w.core().Rollback(context.Background(), "obsidian"); err != nil {
+		t.Fatal(err)
+	}
 
-	after, _ := os.ReadFile(w.path("Applications/obsidian/obsidian.AppImage"))
-	if !errors.Is(err, core.ErrRunning) || string(after) != string(current) {
-		t.Fatalf("got %v, AppImage changed %v; want ErrRunning and nothing changed", err, string(after) != string(current))
+	if installed, _ := os.ReadFile(w.path("Applications/obsidian/obsidian.AppImage")); string(installed) != string(before) {
+		t.Fatal("want v1.9.0 back in place while Obsidian runs (ADR 0009)")
 	}
 }
 
@@ -123,5 +123,33 @@ func TestThereIsNoSecondRollback(t *testing.T) {
 
 	if !errors.Is(err, core.ErrNoPreviousVersion) {
 		t.Fatalf("got %v; want ErrNoPreviousVersion (RB-2)", err)
+	}
+}
+
+func TestSkipStopsChecksInstallingTheLatestRelease(t *testing.T) {
+	w := newWorld(t)
+	addObsidian(t, w, obsidianImage)
+	w.publish("v1.10.0", oct10, map[string]testkit.AppImage{"Obsidian-1.10.0.AppImage": obsidian110})
+	ctx := context.Background()
+
+	skipped, err := w.core().Skip(ctx, "obsidian", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	results, _ := w.core().Check(ctx, "obsidian")
+
+	if skipped != "v1.10.0" || results[0].Result != "skipped" {
+		t.Fatalf("skipped %q, check %+v; want the latest, v1.10.0, skipped and not installed", skipped, results)
+	}
+}
+
+func TestSkippingTheInstalledVersionIsRefused(t *testing.T) {
+	w := newWorld(t)
+	addObsidian(t, w, obsidianImage)
+
+	_, err := w.core().Skip(context.Background(), "obsidian", "v1.9.0")
+
+	if !errors.Is(err, core.ErrSkipInstalled) {
+		t.Fatalf("got %v; want ErrSkipInstalled (that's a rollback)", err)
 	}
 }

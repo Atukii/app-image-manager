@@ -195,7 +195,34 @@ func TestOnlyTheFirstAddSaysItInstalledTheTimers(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if len(first.Notes) != 1 || !strings.Contains(first.Notes[0], "systemd") || len(second.Notes) != 0 {
-		t.Fatalf("first notes %q, second notes %q; want one note about systemd timers, then none", first.Notes, second.Notes)
+	if !strings.Contains(strings.Join(first.Notes, "\n"), "systemd") || strings.Contains(strings.Join(second.Notes, "\n"), "systemd") {
+		t.Fatalf("first notes %q, second notes %q; want the note about systemd timers only the first time", first.Notes, second.Notes)
+	}
+}
+
+func TestTheAppIDQuestionSaysTheDownloadWasVerified(t *testing.T) {
+	w := newWorld(t)
+	w.publish("v1.9.0", oct1, map[string]testkit.AppImage{"Obsidian-1.9.0.AppImage": obsidianImage})
+
+	_, err := w.core().Add(context.Background(), obsidianURL)
+
+	q := needAnswers(t, err)
+	if q.Facts["file"] != "Obsidian-1.9.0.AppImage" || q.Facts["version"] != "v1.9.0" || q.Facts["verified"] != "yes" {
+		t.Fatalf("got facts %v; want the file, its version and verified: yes", q.Facts)
+	}
+}
+
+func TestAddSaysWhenADownloadCouldNotBeVerified(t *testing.T) {
+	w := newWorld(t)
+	w.source.NoDigests = true
+	w.publish("v1.9.0", oct1, map[string]testkit.AppImage{"Obsidian-1.9.0.AppImage": obsidianImage})
+
+	out, err := w.core().Add(context.Background(), obsidianURL, core.Yes)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !strings.Contains(strings.Join(out.Notes, "\n"), "no checksum") {
+		t.Fatalf("notes %q; want it said that the release publishes no checksum", out.Notes)
 	}
 }

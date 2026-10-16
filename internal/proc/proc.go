@@ -34,3 +34,19 @@ func Running(appImage, procRoot string) bool {
 	}
 	return false
 }
+
+// RunningReplaced reports whether a process still runs an older appImage
+// that has since been replaced: Linux shows its exe as "<path> (deleted)".
+// Such an app needs reopening to use the installed version (ADR 0009).
+func RunningReplaced(appImage, procRoot string) bool {
+	entries, err := os.ReadDir(procRoot)
+	if err != nil {
+		return false
+	}
+	for _, e := range entries {
+		if exe, err := os.Readlink(filepath.Join(procRoot, e.Name(), "exe")); err == nil && exe == appImage+" (deleted)" {
+			return true
+		}
+	}
+	return false
+}
