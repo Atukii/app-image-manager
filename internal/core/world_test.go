@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -27,7 +29,12 @@ type world struct {
 	server  *httptest.Server
 	source  *fakeSource
 	now     time.Time
-	running map[string]bool // AppImage paths currently running
+	// slept records each wait between retries.
+	slept []time.Duration
+	// downloads counts Asset downloads from the file server.
+	downloads int
+	// notified records every notification sent.
+	notified []core.Notification
 	// refreshed records each directory the desktop menu was refreshed for.
 	refreshed []string
 }
@@ -35,12 +42,11 @@ type world struct {
 func newWorld(t *testing.T) *world {
 	t.Helper()
 	w := &world{
-		t:       t,
-		home:    t.TempDir(),
-		files:   map[string][]byte{},
-		source:  &fakeSource{},
-		now:     time.Date(2026, 10, 16, 9, 0, 0, 0, time.UTC),
-		running: map[string]bool{},
+		t:      t,
+		home:   t.TempDir(),
+		files:  map[string][]byte{},
+		source: &fakeSource{},
+		now:    time.Date(2026, 10, 16, 9, 0, 0, 0, time.UTC),
 	}
 	w.systemd = testkit.NewSystemd(w.path(".config/systemd/user"))
 	w.server = httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
@@ -49,6 +55,7 @@ func newWorld(t *testing.T) *world {
 			http.NotFound(rw, r)
 			return
 		}
+		w.downloads++
 		rw.Write(data)
 	}))
 	t.Cleanup(w.server.Close)
@@ -69,6 +76,10 @@ func (w *world) core() *core.Core {
 		Sources:   func(source.Ref) (source.ReleaseSource, error) { return w.source, nil },
 		Systemctl: w.systemd,
 		Aim:       "/home/jakub/.local/bin/aim",
+		Sleep:     func(d time.Duration) { w.slept = append(w.slept, d) },
+		Notifier: notifierFunc(func(n core.Notification) {
+			w.notified = append(w.notified, n)
+		}),
 		RefreshMenu: func(dir string) {
 			w.refreshed = append(w.refreshed, dir)
 		},
@@ -102,9 +113,15 @@ func (w *world) publish(tag string, published time.Time, assets map[string]testk
 // fakeSource is a Release Source whose Releases the test publishes.
 type fakeSource struct {
 	releases []source.Release // newest first
+	// failures is how many of the next lookups fail.
+	failures int
 }
 
 func (f *fakeSource) Latest(context.Context) (source.Release, error) {
+	if f.failures > 0 {
+		f.failures--
+		return source.Release{}, errors.New("dial tcp: lookup api.github.com: no such host")
+	}
 	if len(f.releases) == 0 {
 		return source.Release{}, os.ErrNotExist
 	}
@@ -125,3 +142,27 @@ var obsidianImage = testkit.AppImage{
 }
 
 const obsidianURL = "https://github.com/obsidianmd/obsidian-releases"
+
+type notifierFunc func(core.Notification)
+
+func (f notifierFunc) Notify(_ context.Context, n core.Notification) { f(n) }
+
+// start makes appID's AppImage run, as a fake /proc entry, and returns a
+// function that stops it.
+func (w *world) start(appID string) (stop func()) {
+	w.t.Helper()
+	dir := w.path(fmt.Sprintf("proc/%d", 1000+len(appID)))
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		w.t.Fatal(err)
+	}
+	if err := os.Symlink(w.path("Applications/"+appID+"/"+appID+".AppImage"), filepath.Join(dir, "exe")); err != nil {
+		w.t.Fatal(err)
+	}
+	return func() { os.RemoveAll(dir) }
+}
+
+// tamper changes the bytes served for a published Asset, so they no longer
+// match its Digest.
+func (w *world) tamper(tag, name string) {
+	w.files["/download/"+tag+"/"+name] = []byte("tampered")
+}

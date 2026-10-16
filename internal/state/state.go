@@ -48,6 +48,27 @@ type App struct {
 	IconExt string `json:"iconExt"`
 	// UserIcon is set when the user chose the icon, so a Swap keeps it.
 	UserIcon bool `json:"userIcon,omitempty"`
+	// Staged is the Staged Update waiting for the app to stop running.
+	Staged *Staged `json:"staged,omitempty"`
+	// Rejected is a Release tag whose download didn't match its Digest; it is
+	// not downloaded again.
+	Rejected string `json:"rejected,omitempty"`
+	// LastCheck is the outcome of the most recent Check.
+	LastCheck *LastCheck `json:"lastCheck,omitempty"`
+}
+
+// LastCheck records when a Managed App was last Checked, and how it went.
+type LastCheck struct {
+	At     time.Time `json:"at"`
+	Result string    `json:"result"`
+	Error  string    `json:"error,omitempty"`
+}
+
+// Staged is a downloaded, verified AppImage waiting to be swapped in.
+type Staged struct {
+	Tag       string    `json:"tag"`
+	Published time.Time `json:"published"`
+	Path      string    `json:"path"`
 }
 
 // ErrLocked means another aim process held the state lock for longer than

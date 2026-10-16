@@ -3,6 +3,7 @@
 package core
 
 import (
+	"context"
 	"net/http"
 	"path/filepath"
 	"time"
@@ -49,6 +50,10 @@ type Deps struct {
 	Aim string
 	// DefaultPoll is the Poll Rate for new apps; weekly when empty.
 	DefaultPoll state.PollRate
+	// Sleep waits between Check retries; time.Sleep when nil.
+	Sleep func(time.Duration)
+	// Notifier tells the user about Checks; nil sends nothing.
+	Notifier Notifier
 	// RefreshMenu tells the desktop that the Desktop Entries in dir changed
 	// (update-desktop-database). Nil does nothing.
 	RefreshMenu func(dir string)
@@ -72,6 +77,12 @@ func New(d Deps) *Core {
 	if d.ProcRoot == "" {
 		d.ProcRoot = "/proc"
 	}
+	if d.Sleep == nil {
+		d.Sleep = time.Sleep
+	}
+	if d.Notifier == nil {
+		d.Notifier = silent{}
+	}
 	if d.RefreshMenu == nil {
 		d.RefreshMenu = func(string) {}
 	}
@@ -89,3 +100,19 @@ func (c *Core) appFolder(id string) string { return filepath.Join(c.deps.Paths.A
 func (c *Core) appImagePath(id string) string {
 	return filepath.Join(c.appFolder(id), id+".AppImage")
 }
+
+// Notification is a message for the user about a Managed App (SWAP-4).
+type Notification struct {
+	Kind    string `json:"kind"` // installed | staged | failed | digest-mismatch
+	App     string `json:"app"`
+	Summary string `json:"summary"`
+}
+
+// Notifier shows Notifications, e.g. over D-Bus.
+type Notifier interface {
+	Notify(ctx context.Context, n Notification)
+}
+
+type silent struct{}
+
+func (silent) Notify(context.Context, Notification) {}

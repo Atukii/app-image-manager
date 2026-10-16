@@ -18,6 +18,10 @@ type AppStatus struct {
 	Name    string         `json:"name"`
 	Version string         `json:"version"`
 	Poll    state.PollRate `json:"poll"`
+	// LastCheck is nil until the app is first Checked.
+	LastCheck *state.LastCheck `json:"lastCheck,omitempty"`
+	// Staged is the tag of a Staged Update waiting to be installed.
+	Staged string `json:"staged,omitempty"`
 }
 
 // List returns every Managed App, sorted by App ID.
@@ -29,7 +33,11 @@ func (c *Core) List(ctx context.Context) ([]AppStatus, error) {
 	var apps []AppStatus
 	for _, id := range slices.Sorted(maps.Keys(st.Apps)) {
 		app := st.Apps[id]
-		apps = append(apps, AppStatus{ID: id, Name: c.displayName(app), Version: app.Tag, Poll: app.Poll})
+		status := AppStatus{ID: id, Name: c.displayName(app), Version: app.Tag, Poll: app.Poll, LastCheck: app.LastCheck}
+		if app.Staged != nil {
+			status.Staged = app.Staged.Tag
+		}
+		apps = append(apps, status)
 	}
 	return apps, nil
 }
