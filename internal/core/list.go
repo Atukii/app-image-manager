@@ -36,6 +36,8 @@ type AppStatus struct {
 	Source       string `json:"source"`
 	AssetPattern string `json:"assetPattern"`
 	DesktopFile  string `json:"desktopFile"`
+	// Icon is the path of the app's icon file.
+	Icon string `json:"icon"`
 	// Overrides are the user's Desktop Entry values and launch settings.
 	Overrides desktop.Overrides `json:"overrides"`
 }
@@ -52,6 +54,7 @@ func (c *Core) List(ctx context.Context) ([]AppStatus, error) {
 		status := AppStatus{ID: id, Name: c.displayName(app), Version: app.Tag, Poll: app.Poll, LastCheck: app.LastCheck, Skipped: app.Skipped, Overrides: app.Overrides,
 			Reopen:    proc.RunningReplaced(c.appImagePath(id), c.deps.ProcRoot),
 			Dismissed: app.Dismissed != "" && app.Dismissed == app.Tag,
+			Icon:      filepath.Join(c.appFolder(id), id+app.IconExt),
 			Source:    sourceURL(app.Source), AssetPattern: app.AssetPattern, DesktopFile: app.DesktopFile}
 		if app.Previous != nil {
 			status.Previous = app.Previous.Tag

@@ -115,6 +115,7 @@ func TestListShowsTheAddedApp(t *testing.T) {
 	want := []core.AppStatus{{
 		ID: "obsidian", Name: "Obsidian", Version: "v1.9.0", Poll: state.Weekly,
 		Source: obsidianURL, AssetPattern: "Obsidian-*.AppImage", DesktopFile: "md.obsidian.Obsidian.desktop",
+		Icon: w.path("Applications/obsidian/obsidian.png"),
 	}}
 	if !reflect.DeepEqual(apps, want) {
 		t.Fatalf("got %+v\nwant %+v", apps, want)
@@ -147,6 +148,9 @@ func TestListShowsWhatTheAppPanelNeeds(t *testing.T) {
 	apps, _ := w.core().List(context.Background())
 
 	a := apps[0]
+	if a.Icon != w.path("Applications/obsidian/obsidian.png") {
+		t.Fatalf("got icon %q; want the App Folder's icon file", a.Icon)
+	}
 	if a.Previous != "v1.9.0" || a.Source != obsidianURL || a.AssetPattern != "Obsidian-*.AppImage" || a.DesktopFile != "md.obsidian.Obsidian.desktop" {
 		t.Fatalf("got %+v; want previous v1.9.0, its source, file pattern and Desktop Entry filename", a)
 	}
