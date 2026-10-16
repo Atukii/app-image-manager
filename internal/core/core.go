@@ -23,6 +23,8 @@ type Paths struct {
 	Icons        string // ~/.local/share/icons: the user's icon themes
 	Config       string // ~/.config/aim
 	Autostart    string // ~/.config/autostart: where the tray's login entry lives
+	// ScanDirs are where Scan looks for AppImages AiM doesn't manage yet.
+	ScanDirs []string
 	// SystemApplications are the system Desktop Entry directories, checked
 	// for Shadowing.
 	SystemApplications []string
@@ -40,6 +42,10 @@ func HomePaths(home string) Paths {
 		Config:             filepath.Join(home, ".config/aim"),
 		Autostart:          filepath.Join(home, ".config/autostart"),
 		SystemApplications: []string{"/usr/local/share/applications", "/usr/share/applications"},
+		ScanDirs: []string{
+			filepath.Join(home, "Applications"), filepath.Join(home, "Downloads"),
+			filepath.Join(home, ".local/bin"), filepath.Join(home, "AppImages"),
+		},
 	}
 }
 

@@ -30,6 +30,8 @@ type State struct {
 	// state changed since it last looked.
 	Generation int            `json:"generation"`
 	Apps       map[string]App `json:"apps"`
+	// Ignored are the paths of Ignored AppImages, which Scans leave out.
+	Ignored []string `json:"ignored,omitempty"`
 }
 
 // App is AiM's record of one Managed App.

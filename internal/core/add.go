@@ -116,10 +116,15 @@ func (c *Core) Add(ctx context.Context, sourceURL string, options ...Opt) (Outco
 	}
 	c.deps.RefreshMenu(c.deps.Paths.Applications)
 	if firstTimer {
-		out.Notes = append(out.Notes, "Installed AiM's systemd user timers in "+c.deps.Paths.Units+
-			" so updates are checked automatically.")
+		out.Notes = append(out.Notes, c.timersNote())
 	}
 	return out, nil
+}
+
+// timersNote tells the user the first Managed App installed AiM's timers
+// (ADD-11).
+func (c *Core) timersNote() string {
+	return "Installed AiM's systemd user timers in " + c.deps.Paths.Units + " so updates are checked automatically."
 }
 
 // chooseAsset picks the Asset to install, asking when several match, and
@@ -320,6 +325,7 @@ func (c *Core) installPlan(ctx context.Context, app *state.App, download string,
 	app.IconExt = ext
 	iconPath := filepath.Join(folder, app.ID+ext)
 	entryPath := filepath.Join(c.deps.Paths.Applications, app.DesktopFile)
+	entry, entryErr := c.desktopEntry(*app, info.DesktopEntry, iconPath)
 
 	return Plan{
 		{
@@ -335,17 +341,20 @@ func (c *Core) installPlan(ctx context.Context, app *state.App, download string,
 				}
 				return os.Chmod(appImage, 0o755)
 			},
+			// Put the file back before the App Folder is removed: when
+			// adopting, it is the user's own AppImage.
+			undo: func() { moveFile(appImage, download) },
 		},
 		{
 			Describe: "write icon " + iconPath,
 			do:       func() error { return os.WriteFile(iconPath, icon, 0o644) },
 		},
 		{
-			Describe: "write Desktop Entry " + entryPath,
+			// The preview is exactly what is written (ADOPT-3).
+			Describe: "write Desktop Entry " + entryPath + ":\n" + string(entry),
 			do: func() error {
-				entry, err := c.desktopEntry(*app, info.DesktopEntry, iconPath)
-				if err != nil {
-					return err
+				if entryErr != nil {
+					return entryErr
 				}
 				if err := os.MkdirAll(c.deps.Paths.Applications, 0o755); err != nil {
 					return err
