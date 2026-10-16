@@ -40,6 +40,10 @@ func Run(ctx context.Context, args []string, env Env) int {
 		fmt.Fprint(env.Stderr, usage)
 		return exitUsage
 	}
+	if args[0] == "help" || args[0] == "-h" || args[0] == "--help" {
+		fmt.Fprint(env.Stdout, usage)
+		return exitOK
+	}
 	cmd, ok := commands[args[0]]
 	if !ok {
 		fmt.Fprintf(env.Stderr, "aim: unknown command %q\n\n%s", args[0], usage)
@@ -317,7 +321,33 @@ func printOutcome(done string) func(*invocation, any) {
 }
 
 var usage = strings.TrimSpace(`
-usage: aim <command> [arguments]
+usage: aim <command> [arguments] [--yes] [--dry-run] [--json]
 
-  add <source-url>   install an AppImage from a GitHub repository or download link
+Getting apps
+  add <source-url>             install an AppImage from a GitHub repository or download link
+  adopt <appimage> <url>       let AiM manage an AppImage you already have
+  scan                         find AppImages AiM doesn't manage yet, and choose what to do with each
+  ignore <appimage>            never offer an AppImage in scan again
+
+Keeping them updated
+  list                         show your apps, their versions and update checks
+  check [app-id…]              check for and install updates (what the timers run)
+  update [app-id…]             the same, by hand
+  rollback <app-id>            go back to the previous version, skipping the one rolled back from
+  unskip <app-id>              allow a skipped release again
+  set-poll <app-id> <rate>     check daily, weekly, monthly or never
+
+Changing an app
+  edit <app-id>                change its name, categories, icon, launch arguments or environment
+
+Letting go
+  remove <app-id>              delete an app entirely
+  unmanage <app-id>            stop managing an app; it stays installed and keeps working
+  uninstall                    stop managing every app and remove AiM itself
+
+Maintenance
+  doctor                       look for problems and say how to fix them
+  setup                        install or repair the timers and Desktop Entries
+
+Run aim <command> -h for a command's flags.
 `) + "\n"

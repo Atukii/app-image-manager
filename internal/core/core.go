@@ -33,16 +33,39 @@ type Paths struct {
 
 // HomePaths are the standard Paths for a home directory.
 func HomePaths(home string) Paths {
+	return XDGPaths(home, func(string) string { return "" })
+}
+
+// XDGPaths are the Paths for a home directory, following the XDG Base
+// Directory variables read with getenv.
+func XDGPaths(home string, getenv func(string) string) Paths {
+	dir := func(variable, fallback string) string {
+		if v := getenv(variable); filepath.IsAbs(v) {
+			return v
+		}
+		return filepath.Join(home, fallback)
+	}
+	data, config, cache := dir("XDG_DATA_HOME", ".local/share"), dir("XDG_CONFIG_HOME", ".config"), dir("XDG_CACHE_HOME", ".cache")
+	dataDirs := getenv("XDG_DATA_DIRS")
+	if dataDirs == "" {
+		dataDirs = "/usr/local/share:/usr/share"
+	}
+	var system []string
+	for _, d := range filepath.SplitList(dataDirs) {
+		if filepath.IsAbs(d) {
+			system = append(system, filepath.Join(d, "applications"))
+		}
+	}
 	return Paths{
 		Apps:               filepath.Join(home, "Applications"),
-		Data:               filepath.Join(home, ".local/share/aim"),
-		Applications:       filepath.Join(home, ".local/share/applications"),
-		Units:              filepath.Join(home, ".config/systemd/user"),
-		Cache:              filepath.Join(home, ".cache/aim"),
-		Icons:              filepath.Join(home, ".local/share/icons"),
-		Config:             filepath.Join(home, ".config/aim"),
-		Autostart:          filepath.Join(home, ".config/autostart"),
-		SystemApplications: []string{"/usr/local/share/applications", "/usr/share/applications"},
+		Data:               filepath.Join(data, "aim"),
+		Applications:       filepath.Join(data, "applications"),
+		Icons:              filepath.Join(data, "icons"),
+		Units:              filepath.Join(config, "systemd/user"),
+		Config:             filepath.Join(config, "aim"),
+		Autostart:          filepath.Join(config, "autostart"),
+		Cache:              filepath.Join(cache, "aim"),
+		SystemApplications: system,
 		ScanDirs: []string{
 			filepath.Join(home, "Applications"), filepath.Join(home, "Downloads"),
 			filepath.Join(home, ".local/bin"), filepath.Join(home, "AppImages"),

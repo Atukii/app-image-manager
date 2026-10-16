@@ -3,7 +3,9 @@ module appimage-manager
 go 1.26.3
 
 require (
+	github.com/BurntSushi/toml v1.6.0
 	github.com/diskfs/go-diskfs v1.9.4
+	github.com/godbus/dbus/v5 v5.2.4
 	golang.org/x/mod v0.42.0
 )
 
