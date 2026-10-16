@@ -22,6 +22,8 @@ type AppStatus struct {
 	LastCheck *state.LastCheck `json:"lastCheck,omitempty"`
 	// Staged is the tag of a Staged Update waiting to be installed.
 	Staged string `json:"staged,omitempty"`
+	// Skipped is the Skipped Release's tag.
+	Skipped string `json:"skipped,omitempty"`
 }
 
 // List returns every Managed App, sorted by App ID.
@@ -33,7 +35,7 @@ func (c *Core) List(ctx context.Context) ([]AppStatus, error) {
 	var apps []AppStatus
 	for _, id := range slices.Sorted(maps.Keys(st.Apps)) {
 		app := st.Apps[id]
-		status := AppStatus{ID: id, Name: c.displayName(app), Version: app.Tag, Poll: app.Poll, LastCheck: app.LastCheck}
+		status := AppStatus{ID: id, Name: c.displayName(app), Version: app.Tag, Poll: app.Poll, LastCheck: app.LastCheck, Skipped: app.Skipped}
 		if app.Staged != nil {
 			status.Staged = app.Staged.Tag
 		}

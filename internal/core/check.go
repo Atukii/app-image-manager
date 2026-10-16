@@ -127,6 +127,10 @@ func (c *Core) check(ctx context.Context, app state.App) (CheckResult, error) {
 		result.Result = "up-to-date"
 		return result, nil
 	}
+	if rel.Tag == app.Skipped {
+		result.Result = "skipped"
+		return result, nil
+	}
 	if rel.Tag == app.Rejected {
 		return fail(fmt.Errorf("%s %w", rel.Tag, errRejected))
 	}
@@ -209,7 +213,9 @@ func (c *Core) swap(id string, staged state.Staged) error {
 			os.Rename(previous, current)
 			return err
 		}
+		app.Previous = &state.Release{Tag: app.Tag, Published: app.Published}
 		app.Tag, app.Published, app.Staged = staged.Tag, staged.Published, nil
+		app.Skipped = "" // a newer Release supersedes the Skipped one
 		s.Apps[id] = app
 		return nil
 	})

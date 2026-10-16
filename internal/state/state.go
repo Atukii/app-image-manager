@@ -48,8 +48,13 @@ type App struct {
 	IconExt string `json:"iconExt"`
 	// UserIcon is set when the user chose the icon, so a Swap keeps it.
 	UserIcon bool `json:"userIcon,omitempty"`
+	// Previous is the Release of the Previous Version, kept for Rollback.
+	Previous *Release `json:"previous,omitempty"`
 	// Staged is the Staged Update waiting for the app to stop running.
 	Staged *Staged `json:"staged,omitempty"`
+	// Skipped is the Skipped Release: the tag rolled back from, which Checks
+	// ignore until a newer Release appears or the user unskips it.
+	Skipped string `json:"skipped,omitempty"`
 	// Rejected is a Release tag whose download didn't match its Digest; it is
 	// not downloaded again.
 	Rejected string `json:"rejected,omitempty"`
@@ -62,6 +67,12 @@ type LastCheck struct {
 	At     time.Time `json:"at"`
 	Result string    `json:"result"`
 	Error  string    `json:"error,omitempty"`
+}
+
+// Release identifies an installed Release.
+type Release struct {
+	Tag       string    `json:"tag"`
+	Published time.Time `json:"published"`
 }
 
 // Staged is a downloaded, verified AppImage waiting to be swapped in.
