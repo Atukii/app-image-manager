@@ -177,12 +177,22 @@ The timer runs `aim check <App ID>`. Run by hand without arguments, it Checks ev
 
 ## GUI (`aim-gui`)
 
-- **GUI-1** Main window: the Managed App list (as in `LIST-1`), plus Add (Source URL, Asset choice, App ID with the permanence warning, Poll Rate, optional icon) and Scan (the `SCAN-2` choices as a list).
-- **GUI-2** Each app has a manage section: icon, Overrides with "reset to embedded", Poll Rate, Update now, Rollback, Unskip, Remove, Stop managing. Remove and Stop managing show the Removal Plan.
-- **GUI-3** Consolidation uses the same a/b/c options as `ADOPT-3`, as radio buttons, with a preview of the final Desktop Entry.
-- **GUI-4** Settings: config values, the autostart toggle, and "Uninstall AiM" (with the Removal Plan, the keep-config question with no preselected answer, and the binary removal instructions).
-- **GUI-5** Tray icon: shows when apps need reopening after an update or Checks have failed, with menu items Check all now, Open AiM and Quit. It starts at login through the autostart entry, which the user can turn off.
-- **GUI-6** The GUI never schedules Checks and never writes AiM state or files itself. Everything goes through `aim … --json`.
+The layout, wording and colours were settled with a clickable prototype (layout "D"), kept on the branch `prototype/aim-gui-layout` (`prototype/aim-gui.html`). The prototype is the reference for anything below that a sentence can't pin down.
+
+- **GUI-1 Window.** A toolbar (**+ Add app**, **Find AppImages…**, **Check all**, **Settings**) over two tabs:
+  - **Activity** (the default; its tab shows a count) lists only what needs a decision, each as a card with its choices: an app updated while open (**Roll back to <previous>**, **Got it**), an app whose Check failed (**Add token** when GitHub's limit was the cause, **Try again**), and AppImages found on this computer (**Manage**, **Leave alone**, **Skip**). Clicking an app card's body opens that app in **Apps**. With nothing to decide it says "Nothing needs your attention."
+  - **Apps** shows every Managed App as a tile (icon, name, Version, status chip) and a final **Add an app** tile.
+- **GUI-2 App panel.** Selecting an app splits the window: the list narrows to a column, and the app's panel opens on the right with a ✕ (or Esc) to close it. It fades and slides in (about 0.2 s, only when it opens; none with reduced motion), casts a shadow over the list, and the list dims slightly. The panel fits on one screen without scrolling, in two columns:
+  - left: Check for updates, Roll back to <previous>, Skip a release… or Allow <skipped>; update checks (daily / weekly / monthly / never, and the last Check); details (source, file pattern, files, menu entry);
+  - right: application-menu fields (each marked as yours or from the AppImage, with a reset), icon, launch arguments and environment, and Stop managing… / Remove app… (both through their Removal Plan).
+  A note at the top explains the app's state (Reopen, Check failed, Skipped).
+- **GUI-3 Status chips** are exactly: **Reopen**, **Check failed**, **Skipped**, **Up to date**, **Checks off**.
+- **GUI-4 Adding.** **+ Add app** asks first: **From a link** (then the `aim add` Questions) or **From a file on this computer** (choose or Browse…, then the source, the Version Question when uncertain, the App ID and the plan, as `aim adopt`). Dropping an AppImage file onto the window starts the file route; pasting a link (Ctrl+V) starts the link route. Links can't be dropped: Fyne only receives dropped files. Consolidation shows every differing field at once (a / b / c, nothing preselected) with a live preview of the final entry. Each confirmation states the Poll Rate chosen.
+- **GUI-5 Settings:** GitHub token (with what it changes and how to get one), the default Poll Rate for new apps, notifications (updated, Check failed, Digest mismatch), the tray at login, and **Uninstall AiM…** (its Removal Plan and the keep-config choice with nothing preselected).
+- **GUI-6 Tray icon** with a badge counting apps that need reopening or failed a Check; its menu lists those, then Check all now, Open AiM and Quit the tray icon (updates still run from the timers).
+- **GUI-7 Pop-ups** confirm what happened in one line and disappear after about 7 seconds; they have no Undo. Skipping a found AppImage says AiM will ask about it again next time it looks.
+- **GUI-8 Look.** The user's violet scheme in both themes, following the system setting: Neutral `#0F081D`, Primary `#A78BFA`, Secondary `#8B5CF6`, Tertiary `#C4B5FD`; dark is the reference, light is derived from the same hues (a deeper Secondary where the accent is text). JetBrains Mono everywhere. Square buttons, inputs and chips on rounded panels and cards; salmon for destructive actions.
+- **GUI-9** The GUI never schedules Checks and never writes AiM state or files itself. Everything goes through `aim … --json`, and every sentence it shows describes behaviour that exists.
 
 ## Build and release
 
