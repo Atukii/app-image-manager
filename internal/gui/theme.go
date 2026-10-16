@@ -67,6 +67,18 @@ func colours() palette {
 func rgb(r, g, b uint8) color.Color { return color.NRGBA{r, g, b, 0xff} }
 
 var (
+	//go:embed icons/app.png
+	appIconPNG []byte
+	//go:embed icons/tray.png
+	trayPNG []byte
+	//go:embed icons/tray-attention.png
+	trayAttentionPNG []byte
+
+	// AppIcon is AiM's logo: the window and application icon.
+	AppIcon       = fyne.NewStaticResource("aim.png", appIconPNG)
+	trayCalm      = fyne.NewStaticResource("aim-tray.png", trayPNG)
+	trayAttention = fyne.NewStaticResource("aim-tray-attention.png", trayAttentionPNG)
+
 	//go:embed fonts/JetBrainsMono-Regular.ttf
 	monoRegular []byte
 	//go:embed fonts/JetBrainsMono-Bold.ttf
@@ -165,4 +177,13 @@ func (violet) Size(name fyne.ThemeSizeName) float32 {
 func withAlpha(c color.Color, a uint8) color.Color {
 	r, g, b, _ := c.RGBA()
 	return color.NRGBA{uint8(r >> 8), uint8(g >> 8), uint8(b >> 8), a}
+}
+
+// trayIcon is the logo's face, with its pink update badge when apps need
+// attention (GUI-6).
+func trayIcon(attention int) fyne.Resource {
+	if attention > 0 {
+		return trayAttention
+	}
+	return trayCalm
 }

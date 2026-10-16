@@ -39,8 +39,10 @@ type UI struct {
 // New builds aim-gui's window around client.
 func New(app fyne.App, client *Client) *UI {
 	app.Settings().SetTheme(violet{})
+	app.SetIcon(AppIcon)
 	u := &UI{app: app, client: client, toast: newToasts()}
 	u.win = app.NewWindow("AiM")
+	u.win.SetIcon(AppIcon)
 	u.win.Resize(fyne.NewSize(1040, 680))
 
 	toolbar := container.NewHBox(

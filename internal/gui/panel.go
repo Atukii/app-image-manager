@@ -1,11 +1,8 @@
 package gui
 
 import (
-	"bytes"
 	"fmt"
-	"image"
 	"image/color"
-	"image/png"
 	"os"
 	"strings"
 
@@ -199,37 +196,4 @@ func tildeHome(path string) string {
 		return "~" + strings.TrimPrefix(path, home)
 	}
 	return path
-}
-
-// trayIcon draws the tray icon: a Primary download arrow, with a badge
-// when apps need attention (GUI-6).
-func trayIcon(attention int) fyne.Resource {
-	const size = 64
-	img := image.NewNRGBA(image.Rect(0, 0, size, size))
-	ink := primary.(color.NRGBA)
-	fill := func(x0, y0, x1, y1 int, c color.NRGBA) {
-		for y := y0; y < y1; y++ {
-			for x := x0; x < x1; x++ {
-				img.SetNRGBA(x, y, c)
-			}
-		}
-	}
-	fill(29, 8, 35, 40, ink)  // shaft
-	for i := 0; i < 14; i++ { // arrow head
-		fill(18+i, 26+i, 46-i, 28+i, ink)
-	}
-	fill(12, 50, 52, 56, ink) // tray
-	if attention > 0 {
-		badge := salmon.(color.NRGBA)
-		for y := 0; y < 22; y++ {
-			for x := 0; x < 22; x++ {
-				if (x-11)*(x-11)+(y-11)*(y-11) <= 110 {
-					img.SetNRGBA(size-22+x, y, badge)
-				}
-			}
-		}
-	}
-	var buf bytes.Buffer
-	png.Encode(&buf, img)
-	return fyne.NewStaticResource(fmt.Sprintf("aim-tray-%d.png", min(attention, 1)), buf.Bytes())
 }
