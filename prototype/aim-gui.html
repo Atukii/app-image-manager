@@ -1,0 +1,927 @@
+<title>AiM Window Layouts</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap">
+<!--
+  PROTOTYPE — throwaway. Question: what should aim-gui's main window look like?
+  Chosen: D (C's Activity/Apps tabs + a closable, two-column app panel that fits without scrolling).
+  A, B and C were rejected; their code is left in this throwaway file but no longer reachable. Shared: tray menu, add-app questions, Consolidation picker, Removal Plan.
+  Everything is in memory; nothing talks to aim. Shapes are kept to what Fyne can draw.
+-->
+<style>
+/* Layout: a desktop strip with a tray, one app window centred below, dialogs over it.
+   Scheme: the user's violet system. Dark is the reference (Neutral #0F081D base, Primary #A78BFA,
+   Secondary #8B5CF6, Tertiary #C4B5FD); light is derived from the same hues: a Neutral-tinted page,
+   white surfaces, Neutral text, Primary fills, and a deeper Secondary wherever the accent is text.
+   JetBrains Mono throughout; square controls on rounded surfaces. */
+:root {
+  --desk: #ece7f8;
+  --panel: #f7f5fc;
+  --win: #ffffff;
+  --win-2: #f4f1fb;
+  --raise: #e9e3f8;
+  --line: #d9d1ee;
+  --fg: #170f2b;
+  --fg-2: #5f577a;
+  --accent: #a78bfa;        /* Primary: fills */
+  --accent-2: #8b5cf6;      /* Secondary */
+  --accent-3: #c4b5fd;      /* Tertiary */
+  --accent-ink: #6a3fdc;    /* accent used as text or a thin line */
+  --accent-fg: #160d2e;
+  --accent-soft: #efe9ff;
+  --good: #2c7a49; --good-soft: #e3f3e8;
+  --warn: #946006; --warn-soft: #fbf0dc;
+  --bad: #b2463b;  --bad-soft: #fbe6e2;
+  --danger: #f4a79a;
+  --info: #6a3fdc; --info-soft: #eee8ff;
+  --shadow: 0 14px 36px rgba(46, 26, 92, .14);
+  --scrim: rgba(23, 15, 43, .35);
+  --cast: rgba(46, 26, 92, .16);    /* the open panel's shadow over the list */
+  --dim: rgba(23, 15, 43, .05);     /* the list behind an open panel */
+  --ui: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --desk: #0f081d; --panel: #161024; --win: #1d182b; --win-2: #171223; --raise: #2a2440; --line: #332c48;
+  --fg: #ece6ff; --fg-2: #a69fbd; --accent-ink: #c4b5fd; --accent-soft: #2c2350;
+  --good: #8fd6a4; --good-soft: #1d2f27; --warn: #f2c27b; --warn-soft: #34291b;
+  --bad: #f4a79a; --bad-soft: #3a2026; --info: #c4b5fd; --info-soft: #2a2348;
+  --shadow: 0 14px 36px rgba(0, 0, 0, .5); --scrim: rgba(5, 2, 12, .6);
+  --cast: rgba(0, 0, 0, .45); --dim: rgba(5, 2, 12, .28); color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --desk: #0f081d; --panel: #161024; --win: #1d182b; --win-2: #171223; --raise: #2a2440; --line: #332c48;
+  --fg: #ece6ff; --fg-2: #a69fbd; --accent-ink: #c4b5fd; --accent-soft: #2c2350;
+  --good: #8fd6a4; --good-soft: #1d2f27; --warn: #f2c27b; --warn-soft: #34291b;
+  --bad: #f4a79a; --bad-soft: #3a2026; --info: #c4b5fd; --info-soft: #2a2348;
+  --shadow: 0 14px 36px rgba(0, 0, 0, .5); --scrim: rgba(5, 2, 12, .6);
+  --cast: rgba(0, 0, 0, .45); --dim: rgba(5, 2, 12, .28); color-scheme: dark; }
+
+* { box-sizing: border-box; }
+body { background: var(--desk); color: var(--fg); font-family: var(--ui); font-size: 13px; line-height: 1.5; letter-spacing: .01em;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0 96px; }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent-ink); outline-offset: 2px; }
+.mono { font-family: var(--mono); font-size: 12px; }
+.muted { color: var(--fg-2); }
+
+/* desktop panel with tray */
+.panelbar { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  margin-inline: calc(-1 * max(16px, env(safe-area-inset-left, 0px))); padding: 6px max(16px, env(safe-area-inset-right, 0px));
+  background: var(--panel); border-bottom: 1px solid var(--line); position: relative; }
+.panelbar .note { font-size: 12px; color: var(--fg-2); }
+.tray { display: flex; align-items: center; gap: 14px; font-size: 13px; }
+.trayicon { position: relative; width: 30px; height: 30px; border: 0; border-radius: 6px; background: transparent; display: grid; place-items: center; }
+.trayicon:hover, .trayicon[aria-expanded="true"] { background: var(--win-2); }
+.trayicon svg { width: 20px; height: 20px; }
+.badge { position: absolute; top: 2px; right: 1px; min-width: 15px; height: 15px; padding: 0 4px; border-radius: 2px;
+  background: var(--accent); color: var(--accent-fg); font-size: 10px; font-weight: 700; display: grid; place-items: center; }
+.traymenu { position: absolute; top: 40px; right: max(16px, env(safe-area-inset-right, 0px)); width: min(330px, calc(100vw - 32px));
+  background: var(--win); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); padding: 6px; z-index: 30; }
+.traymenu .head { padding: 8px 10px 6px; font-weight: 600; }
+.traymenu .item { display: flex; gap: 10px; align-items: flex-start; width: 100%; text-align: left; border: 0; background: transparent;
+  padding: 8px 10px; border-radius: 6px; }
+.traymenu .item:hover { background: var(--win-2); }
+.traymenu .sep { height: 1px; background: var(--line); margin: 6px 4px; }
+.traymenu small { display: block; color: var(--fg-2); }
+
+/* the window */
+.stage { display: grid; justify-items: center; padding-top: 24px; }
+.window { width: min(1040px, 100%); background: var(--win); border: 1px solid var(--line); border-radius: 16px;
+  box-shadow: var(--shadow); overflow: hidden; }
+.titlebar { display: flex; align-items: center; gap: 10px; padding: 9px 14px; background: var(--win-2); border-bottom: 1px solid var(--line); }
+.titlebar .dots { display: flex; gap: 6px; margin-left: auto; }
+.titlebar .dots span { width: 12px; height: 12px; border-radius: 50%; background: var(--line); }
+.titlebar strong { font-weight: 600; }
+
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+.btn { border: 1px solid var(--raise); background: var(--raise); border-radius: 2px; padding: 6px 13px; white-space: nowrap; }
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); font-weight: 600; }
+.btn.primary:hover { background: var(--accent-3); border-color: var(--accent-3); }
+.btn.outlined { background: transparent; border-color: var(--fg-2); }
+.btn.danger { background: var(--danger); border-color: var(--danger); color: var(--accent-fg); font-weight: 600; }
+.btn.small { padding: 3px 9px; font-size: 13px; }
+.btn[disabled] { opacity: .45; cursor: not-allowed; }
+.spacer { flex: 1; }
+
+.appicon { width: 34px; height: 34px; border-radius: 4px; display: grid; place-items: center; font-weight: 700; color: #fff; flex: none; font-size: 14px; }
+.pill { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: 2px; font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+.pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.pill.good { background: var(--good-soft); color: var(--good); }
+.pill.warn { background: var(--warn-soft); color: var(--warn); }
+.pill.bad { background: var(--bad-soft); color: var(--bad); }
+.pill.info { background: var(--info-soft); color: var(--info); }
+.pill.idle { background: var(--win-2); color: var(--fg-2); }
+
+/* manage panel (shared content, different containers per variant) */
+.manage { display: grid; gap: 18px; }
+.manage h2 { margin: 0; font-size: 20px; font-weight: 600; text-wrap: balance; }
+.manage .sub { color: var(--fg-2); font-size: 13px; }
+.section h3 { margin: 0 0 8px; font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--fg-2); }
+.fields { display: grid; gap: 6px; }
+.field { display: grid; grid-template-columns: 110px minmax(0, 1fr) auto; gap: 10px; align-items: center; }
+.field input { width: 100%; min-width: 0; padding: 5px 8px; border: 1px solid var(--line); border-radius: 0; background: var(--win-2); }
+.field input:focus { border-color: var(--accent); outline: none; }
+.field .tag { font-size: 11px; font-weight: 600; color: var(--accent-ink); background: var(--accent-soft); padding: 1px 7px; border-radius: 4px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 2px; overflow: hidden; flex-wrap: wrap; }
+.seg button { border: 0; background: var(--win-2); padding: 5px 12px; border-right: 1px solid var(--line); }
+.seg button:last-child { border-right: 0; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); font-weight: 600; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.callout { padding: 10px 12px; border-radius: 4px; font-size: 12.5px; }
+.callout.warn { background: var(--warn-soft); color: var(--fg); border-left: 3px solid var(--warn); }
+.callout.bad { background: var(--bad-soft); color: var(--fg); border-left: 3px solid var(--bad); }
+.callout.info { background: var(--info-soft); color: var(--fg); border-left: 3px solid var(--info); }
+.kv { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 4px 10px; font-size: 13px; }
+.kv dt { color: var(--fg-2); }
+.kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+
+/* Variant A: two panes */
+.va { display: grid; grid-template-columns: 280px minmax(0, 1fr); min-height: 560px; }
+.va .list { border-right: 1px solid var(--line); background: var(--win-2); padding: 8px; display: grid; align-content: start; gap: 2px; }
+.va .row { display: flex; gap: 10px; align-items: center; padding: 8px; border-radius: 7px; border: 0; background: transparent; text-align: left; width: 100%; }
+.va .row:hover { background: var(--win); }
+.va .row[aria-current="true"] { background: var(--accent-soft); }
+.va .row .t { min-width: 0; flex: 1; }
+.va .row .t b { display: block; font-weight: 600; }
+.va .row .t span { font-size: 12px; color: var(--fg-2); }
+.va .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.va .detail { padding: 20px 24px; min-width: 0; }
+
+/* Variant B: one expanding list */
+.vb .paste { display: flex; gap: 8px; padding: 14px; border-bottom: 1px solid var(--line); background: var(--win-2); flex-wrap: wrap; }
+.vb .paste input { flex: 1; min-width: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--win); font-family: var(--mono); font-size: 12.5px; }
+.vb .found { display: flex; gap: 10px; align-items: center; padding: 10px 14px; background: var(--info-soft); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.vb table { width: 100%; border-collapse: collapse; }
+.vb th { text-align: left; font-size: 12px; font-weight: 600; color: var(--fg-2); padding: 8px 14px; border-bottom: 1px solid var(--line); }
+.vb td { padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.vb tr.app { cursor: pointer; }
+.vb tr.app:hover td { background: var(--win-2); }
+.vb tr.app[aria-expanded="true"] td { background: var(--accent-soft); }
+.vb .drawer td { background: var(--win-2); padding: 18px 24px 22px; }
+.vb .namecell { display: flex; gap: 10px; align-items: center; }
+.vb .tablewrap { overflow-x: auto; }
+
+/* Variant C: updates first */
+.vc .tabs { display: flex; gap: 2px; padding: 0 14px; border-bottom: 1px solid var(--line); }
+.vc .tabs button { border: 0; background: transparent; padding: 11px 14px; border-bottom: 2px solid transparent; font-weight: 500; color: var(--fg-2); }
+.vc .tabs button[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); }
+.vc .body { padding: 18px 20px 24px; display: grid; gap: 22px; min-height: 520px; align-content: start; position: relative; }
+.vc .group h3 { margin: 0 0 8px; font-size: 13px; font-weight: 600; }
+.vc .event { display: flex; gap: 12px; align-items: center; padding: 11px 12px; border: 1px solid var(--line); border-radius: 8px; flex-wrap: wrap; }
+.vc .event + .event { margin-top: 6px; }
+.vc .event .t { flex: 1; min-width: 200px; }
+.vc .event .t b { font-weight: 600; }
+.vc .event .t span { display: block; font-size: 12.5px; color: var(--fg-2); }
+.vc .strip { width: 4px; align-self: stretch; border-radius: 2px; }
+.vc .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.vc .tile { border: 1px solid var(--line); border-radius: 8px; padding: 12px; display: grid; gap: 8px; justify-items: start; background: var(--win); text-align: left; }
+.vc .tile:hover { border-color: var(--accent); }
+.vc .sheet-back { position: absolute; inset: 0; background: var(--scrim); display: flex; justify-content: flex-end; }
+.vc .sheet { width: min(520px, 100%); height: 100%; overflow: auto; background: var(--win); border-left: 1px solid var(--line); padding: 20px 22px; box-shadow: var(--shadow); }
+
+/* Variant D: C's tabs, with a closable split panel laid out like A */
+.vd .tabs { display: flex; gap: 2px; padding: 0 14px; border-bottom: 1px solid var(--line); align-items: flex-end; }
+.vd .tabs button { border: 0; background: transparent; padding: 11px 14px; border-bottom: 2px solid transparent; font-weight: 500; color: var(--fg-2); }
+.vd .tabs button[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent-ink); }
+.vd .split { display: grid; grid-template-columns: minmax(0, 1fr); min-height: 600px; background: var(--win); }
+.vd .split.open { grid-template-columns: 330px minmax(0, 1fr); }
+.vd .main { padding: 16px 18px 22px; display: grid; gap: 20px; align-content: start; min-width: 0; }
+.vd .split.open .main { border-right: 1px solid var(--line); background: var(--win-2); padding: 12px; gap: 16px; }
+.vd .tabs button { font-family: var(--ui); }
+.vd .group h3 { margin: 0 0 8px; font-size: 13px; font-weight: 600; }
+.vd .event { display: flex; gap: 12px; align-items: center; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; flex-wrap: wrap; background: var(--win); }
+.vd .event.app { cursor: pointer; }
+.vd .event.app:hover { border-color: var(--accent); }
+.vd .empty { padding: 28px; text-align: center; color: var(--fg-2); border: 1px dashed var(--line); border-radius: 12px; }
+.vd .event + .event { margin-top: 6px; }
+.vd .event.sel { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.vd .event .t { flex: 1; min-width: 160px; }
+.vd .event .t b { font-weight: 600; }
+.vd .event .t span { display: block; font-size: 12.5px; color: var(--fg-2); }
+.vd .strip { width: 4px; align-self: stretch; border-radius: 2px; }
+.vd .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.vd .split.open .grid { grid-template-columns: 1fr; gap: 4px; }
+.vd .tile { border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: grid; gap: 8px; justify-items: start; background: var(--win); text-align: left; }
+.vd .split.open .tile { grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; padding: 8px 10px; gap: 10px; }
+.vd .split.open .tile .pill { grid-column: 3; grid-row: 1 / span 2; }
+.vd .split.open .tile .mono { grid-column: 2; }
+.vd .split.open .tile .appicon { grid-row: 1 / span 2; }
+.vd .tile:hover { border-color: var(--accent); }
+.vd .addtile { border-style: dashed; background: transparent; }
+.window.drop { outline: 2px dashed var(--accent-ink); outline-offset: 4px; }
+.vd .tile[aria-current="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.vd .panel { padding: 16px 20px 18px; min-width: 0; display: grid; gap: 14px; align-content: start;
+  position: relative; z-index: 1; background: var(--win); box-shadow: -18px 0 30px -18px var(--cast); }
+.vd .split.open .main { position: relative; }
+.vd .split.open .main::after { content: ""; position: absolute; inset: 0; background: var(--dim); pointer-events: none; }
+@media (prefers-reduced-motion: no-preference) {
+  .vd .panel.entering { animation: panel-in .22s cubic-bezier(.2, .7, .3, 1); }
+  .vd .split.open.entering .main::after { animation: dim-in .22s ease-out; }
+  @keyframes panel-in { from { opacity: 0; transform: translateX(14px); } }
+  @keyframes dim-in { from { opacity: 0; } }
+}
+.vd .panel .top { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.vd .panel .top h2 { margin: 0; font-size: 19px; font-weight: 600; }
+.vd .close { width: 30px; height: 30px; border-radius: 2px; border: 1px solid var(--raise); background: var(--raise); font-size: 14px; line-height: 1; }
+.vd .close:hover { border-color: var(--accent-3); }
+.vd .cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px 22px; }
+.vd .col { display: grid; gap: 14px; align-content: start; min-width: 0; }
+.vd .panel .section h3 { margin-bottom: 6px; }
+.vd .panel .field { grid-template-columns: 84px minmax(0, 1fr); }
+.vd .panel .field .src { grid-column: 2; font-size: 11.5px; color: var(--fg-2); margin-top: -2px; }
+.vd .panel .kv { grid-template-columns: 84px minmax(0, 1fr); font-size: 12.5px; }
+.vd .panel .callout { padding: 8px 10px; }
+
+/* dialogs */
+.scrim { position: fixed; inset: 0; background: var(--scrim); display: grid; place-items: center; padding: 16px; z-index: 40; }
+.dialog { width: min(640px, 100%); max-height: calc(100% - 32px); overflow: auto; background: var(--win); border-radius: 16px; box-shadow: var(--shadow); border: 1px solid var(--line); }
+.dialog header { padding: 16px 20px 10px; border-bottom: 1px solid var(--line); }
+.dialog header h2 { margin: 0; font-size: 17px; font-weight: 600; }
+.dialog header .steps { display: flex; gap: 6px; margin-top: 10px; }
+.dialog header .steps span { height: 4px; flex: 1; border-radius: 2px; background: var(--line); }
+.dialog header .steps span.on { background: var(--accent); }
+.dialog .content { padding: 18px 20px; display: grid; gap: 14px; }
+.dialog footer { padding: 12px 20px 16px; display: flex; gap: 8px; justify-content: flex-end; border-top: 1px solid var(--line); flex-wrap: wrap; }
+.dialog label.opt { display: flex; gap: 10px; align-items: flex-start; padding: 9px 11px; border: 1px solid var(--line); border-radius: 2px; cursor: pointer; }
+input[type="radio"], input[type="checkbox"] { accent-color: var(--accent); }
+.dialog label.opt:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+.dialog input[type="text"] { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 0; background: var(--win-2); }
+.plan { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; font-size: 13px; }
+.plan li { padding-left: 16px; position: relative; overflow-wrap: anywhere; }
+.plan li::before { content: "•"; position: absolute; left: 2px; color: var(--accent-ink); }
+pre.preview { margin: 0; padding: 10px 12px; background: var(--win-2); border: 1px solid var(--line); border-radius: 4px; font-family: var(--mono); font-size: 12px; line-height: 1.5; overflow-x: auto; }
+pre.preview .changed { background: var(--accent-soft); display: inline-block; width: 100%; }
+.cons { width: 100%; border-collapse: collapse; font-size: 13px; }
+.cons th { text-align: left; font-size: 12px; color: var(--fg-2); font-weight: 600; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+.cons td { padding: 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.cons label { display: flex; gap: 6px; align-items: flex-start; cursor: pointer; }
+.cons code { font-family: var(--mono); font-size: 12px; overflow-wrap: anywhere; }
+.conswrap { overflow-x: auto; }
+
+.themes { display: inline-flex; border: 1px solid var(--line); border-radius: 2px; overflow: hidden; }
+.themes button { border: 0; background: var(--win); padding: 3px 10px; font-size: 12px; }
+.themes button[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); font-weight: 600; }
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(68px + env(safe-area-inset-bottom, 0px)); z-index: 45;
+  width: min(560px, calc(100vw - 32px)); display: flex; gap: 12px; align-items: center; padding: 12px 14px;
+  background: var(--fg); color: var(--win); border-radius: 12px; box-shadow: var(--shadow); font-size: 12.5px; }
+.toast b { font-weight: 600; overflow-wrap: anywhere; }
+.toast .t { flex: 1; min-width: 0; }
+.toast button { border: 1px solid var(--accent); background: var(--accent); color: var(--accent-fg); border-radius: 2px; padding: 4px 10px; font-weight: 600; }
+.toast button.x { background: transparent; border-color: transparent; color: var(--win); padding: 4px 6px; }
+@media (prefers-reduced-motion: no-preference) { .toast { animation: rise .18s ease-out; } @keyframes rise { from { transform: translate(-50%, 8px); opacity: 0; } } }
+
+/* prototype switcher: deliberately not part of the design */
+.switcher { font-family: system-ui, sans-serif; position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(14px + env(safe-area-inset-bottom, 0px)); z-index: 50;
+  display: flex; align-items: center; gap: 4px; padding: 5px; border-radius: 999px; background: #111; color: #fff; box-shadow: 0 6px 20px rgba(0,0,0,.35); font-size: 13px; max-width: calc(100vw - 32px); }
+.switcher button { border: 0; background: #2a2a2a; color: #fff; width: 32px; height: 32px; border-radius: 50%; font-size: 16px; }
+.switcher button:hover { background: #3b3b3b; }
+.switcher span { padding: 0 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+@media (max-width: 860px) {
+  .vd .split.open { grid-template-columns: 1fr; }
+  .vd .split.open .main { display: none; }
+  .vd .cols { grid-template-columns: 1fr; }
+}
+@media (max-width: 760px) {
+  .va { grid-template-columns: 1fr; }
+  .va .list { border-right: 0; border-bottom: 1px solid var(--line); }
+  .field { grid-template-columns: 1fr; }
+  .kv { grid-template-columns: 1fr; }
+  .vb .hide-narrow { display: none; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .vc .sheet { animation: slide .18s ease-out; }
+  @keyframes slide { from { transform: translateX(24px); opacity: .6; } }
+}
+</style>
+
+<div class="panelbar">
+  <span class="note" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">Prototype · click the tray icon →
+    <span class="themes" role="group" aria-label="Preview theme"><button data-theme-set="light">Light</button><button data-theme-set="dark">Dark</button><button data-theme-set="">System</button></span></span>
+  <div class="tray">
+    <span class="muted">EN</span>
+    <button class="trayicon" id="trayBtn" aria-label="AiM tray" aria-expanded="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 19h16"/></svg>
+      <span class="badge" id="trayBadge">2</span>
+    </button>
+    <span class="mono">14:32</span>
+  </div>
+  <div class="traymenu" id="trayMenu" hidden></div>
+</div>
+
+<div class="stage">
+  <div class="window" id="window"></div>
+</div>
+
+<div id="dialogRoot"></div>
+<div id="toastRoot"></div>
+
+<div class="switcher" role="group" aria-label="Prototype variants" hidden>
+  <button id="prevV" aria-label="Previous layout">‹</button>
+  <span id="vLabel"></span>
+  <button id="nextV" aria-label="Next layout">›</button>
+</div>
+
+<script>
+const HOME = "~";
+const apps = [
+  { id: "obsidian", name: "Obsidian", color: "#6b4fbb", version: "v1.10.0", poll: "weekly", status: "restart", running: "v1.9.0",
+    last: "today 09:00 · updated", previous: "v1.9.0", source: "github.com/obsidianmd/obsidian-releases", pattern: "Obsidian-*.AppImage",
+    desktop: "md.obsidian.Obsidian.desktop", overrides: { Name: null, Categories: null }, args: "--ozone-platform=wayland", env: "ELECTRON_OZONE_PLATFORM_HINT=wayland" },
+  { id: "joplin", name: "Joplin", color: "#2b6cc4", version: "v3.0.15", poll: "daily", status: "failed",
+    last: "today 08:12 · failed", error: "GitHub's limit of 60 requests an hour stopped the check", previous: null, source: "github.com/laurent22/joplin",
+    pattern: "Joplin-*.AppImage", desktop: "joplin.desktop", overrides: { Name: null, Categories: null }, args: "", env: "" },
+  { id: "neovim", name: "Neovim", color: "#3c8e3e", version: "v0.12.6", poll: "daily", status: "ok",
+    last: "today 07:41 · up to date", previous: "v0.12.5", source: "github.com/neovim/neovim", pattern: "nvim-linux-x86_64.appimage",
+    desktop: "neovim.desktop", overrides: { Name: null, Categories: null }, args: "", env: "" },
+  { id: "bitwarden", name: "Bitwarden", color: "#175ddc", version: "v2025.9.1", poll: "weekly", status: "skipped", skipped: "v2025.10.0",
+    last: "Mon 10:02 · skipped", previous: null, source: "github.com/bitwarden/clients", pattern: "Bitwarden-*-x86_64.AppImage",
+    desktop: "bitwarden.desktop", overrides: { Name: "Bitwarden (work)", Categories: null }, args: "", env: "" },
+  { id: "krita", name: "Krita", color: "#c4521b", version: "v5.2.9", poll: "never", status: "idle",
+    last: "never checked", previous: null, source: "download.kde.org/stable/krita/…/krita-x86_64.appimage", pattern: "(direct link)",
+    desktop: "org.kde.krita.desktop", overrides: { Name: null, Categories: null }, args: "", env: "" },
+];
+const found = [{ path: "~/Downloads/Obsidian-1.8.2.AppImage", url: "https://github.com/obsidianmd/obsidian-releases" },
+               { path: "~/Downloads/LocalSend-1.15.4-linux-x86-64.AppImage", url: "https://github.com/localsend/localsend" }];
+
+let variant = (location.hash || "#d").slice(1);
+variant = "d";
+let selected = "obsidian";
+let expanded = "obsidian";
+let tabC = "activity";
+let sheet = null;
+const V = { d: "D · chosen layout" };
+let tabD = "activity";
+let openD = null;
+let lastOpenD = null;
+
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const icon = a => `<span class="appicon" style="background:${a.color}">${a.name[0]}</span>`;
+const statusPill = a => ({
+  ok: `<span class="pill good">Up to date</span>`,
+  restart: `<span class="pill warn" title="${a.version} is installed; ${a.name} is still running ${a.running}">Reopen</span>`,
+  failed: `<span class="pill bad">Check failed</span>`,
+  skipped: `<span class="pill info">Skipped</span>`,
+  idle: `<span class="pill idle">Checks off</span>`,
+}[a.status]);
+const dotColor = a => ({ ok: "var(--good)", restart: "var(--warn)", failed: "var(--bad)", skipped: "var(--info)", idle: "var(--line)" }[a.status]);
+const byId = id => apps.find(a => a.id === id);
+
+function manageHTML(a) {
+  const callout = {
+    staged: `<div class="callout warn"><b>${a.staged} is downloaded and verified.</b> AiM installs it after you close ${esc(a.name)}. It never closes your apps.</div>`,
+    failed: `<div class="callout bad"><b>The last check failed.</b> ${esc(a.error)}. Add a GitHub token in Settings to raise the limit.</div>`,
+    skipped: `<div class="callout info">You rolled back from <b>${a.skipped}</b>, so checks skip it until a newer release appears.</div>`,
+  }[a.status] || "";
+  const field = (k, embedded) => {
+    const v = a.overrides[k];
+    return `<div class="field"><label for="f-${a.id}-${k}">${k}</label>
+      <input id="f-${a.id}-${k}" value="${esc(v ?? embedded)}" data-app="${a.id}" data-key="${k}">
+      ${v != null ? `<span><span class="tag">yours</span> <button class="btn small" data-reset="${a.id}:${k}">Use the AppImage's</button></span>` : `<span class="muted" style="font-size:12px">from the AppImage</span>`}</div>`;
+  };
+  return `<div class="manage">
+    <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">${icon(a).replace('class="appicon"', 'class="appicon" style="width:52px;height:52px;font-size:22px;background:' + a.color + '"')}
+      <div style="min-width:0"><h2>${esc(a.overrides.Name ?? a.name)}</h2><div class="sub">${a.version} · App ID <span class="mono">${a.id}</span></div></div>
+      <span class="spacer"></span>${statusPill(a)}</div>
+    ${callout}
+    <div class="actions">
+      <button class="btn primary" data-act="update" data-app="${a.id}">Check for updates</button>
+      ${a.previous ? `<button class="btn" data-act="rollback" data-app="${a.id}">Roll back to ${a.previous}</button>` : ""}
+      ${a.status === "skipped" ? `<button class="btn" data-act="unskip" data-app="${a.id}">Allow ${a.skipped}</button>` : ""}
+    </div>
+    <div class="section"><h3>Update checks</h3>
+      <div class="seg" role="group" aria-label="Poll rate">${["daily", "weekly", "monthly", "never"].map(p =>
+        `<button aria-pressed="${a.poll === p}" data-poll="${a.id}:${p}">${p[0].toUpperCase() + p.slice(1)}</button>`).join("")}</div>
+      <div class="muted" style="font-size:12.5px;margin-top:6px">Last check: ${esc(a.last)}</div></div>
+    <div class="section"><h3>In the application menu</h3><div class="fields">
+      ${field("Name", a.name)}${field("Categories", "Office;")}
+      <div class="field"><label>Icon</label><span class="muted" style="font-size:13px">The AppImage's own</span><button class="btn small">Choose…</button></div>
+    </div></div>
+    <div class="section"><h3>Launch</h3><div class="fields">
+      <div class="field"><label for="args-${a.id}">Arguments</label><input id="args-${a.id}" class="mono" value="${esc(a.args)}" placeholder="e.g. --ozone-platform=wayland"><span></span></div>
+      <div class="field"><label for="env-${a.id}">Environment</label><input id="env-${a.id}" class="mono" value="${esc(a.env)}" placeholder="KEY=value"><span></span></div>
+    </div></div>
+    <div class="section"><h3>Details</h3><dl class="kv">
+      <dt>Source</dt><dd class="mono">${esc(a.source)}</dd>
+      <dt>File pattern</dt><dd class="mono">${esc(a.pattern)}</dd>
+      <dt>Files</dt><dd class="mono">${HOME}/Applications/${a.id}/</dd>
+      <dt>Menu entry</dt><dd class="mono">${HOME}/.local/share/applications/${esc(a.desktop)}</dd></dl></div>
+    <div class="section"><h3>Let go</h3><div class="actions">
+      <button class="btn" data-act="unmanage" data-app="${a.id}">Stop managing…</button>
+      <button class="btn danger" data-act="remove" data-app="${a.id}">Remove app…</button></div></div>
+  </div>`;
+}
+
+const toolbar = extra => `<div class="toolbar">
+  <button class="btn primary" data-act="add">+ Add app</button>
+  <button class="btn" data-act="scan">Find AppImages…</button>
+  <button class="btn" data-act="checkall">Check all</button>
+  <span class="spacer"></span>${extra || ""}<button class="btn" data-act="settings">Settings</button></div>`;
+
+function renderA() {
+  const a = byId(selected) || apps[0];
+  return `${toolbar()}<div class="va">
+    <div class="list" role="list">${apps.map(x => `<button class="row" role="listitem" data-select="${x.id}" aria-current="${x.id === a.id}">
+      ${icon(x)}<span class="t"><b>${esc(x.overrides.Name ?? x.name)}</b><span>${x.version}${x.status === "staged" ? " → " + x.staged : ""}</span></span>
+      <span class="dot" style="background:${dotColor(x)}" title="${x.status}"></span></button>`).join("")}</div>
+    <div class="detail">${manageHTML(a)}</div></div>`;
+}
+
+function renderB() {
+  return `<div class="vb">
+    <form class="paste" id="pasteForm"><input id="pasteUrl" aria-label="Link to add" placeholder="Paste a GitHub releases page or AppImage download link"
+      value="https://github.com/neovim/neovim/releases/download/v0.12.6/nvim-linux-x86_64.appimage"><button class="btn primary">Add</button>
+      <button type="button" class="btn" data-act="checkall">Check all</button><button type="button" class="btn" data-act="settings">Settings</button></form>
+    ${found.length ? `<div class="found"><b>${found.length} AppImages in Downloads aren't managed yet.</b><span class="spacer"></span><button class="btn small" data-act="scan">Review</button></div>` : ""}
+    <div class="tablewrap"><table><thead><tr><th>App</th><th class="hide-narrow">Version</th><th>Status</th><th class="hide-narrow">Checks</th><th class="hide-narrow">Last check</th></tr></thead><tbody>
+    ${apps.map(x => `<tr class="app" data-expand="${x.id}" aria-expanded="${expanded === x.id}" tabindex="0">
+      <td><div class="namecell">${icon(x)}<b>${esc(x.overrides.Name ?? x.name)}</b></div></td>
+      <td class="hide-narrow mono">${x.version}</td><td>${statusPill(x)}</td><td class="hide-narrow">${x.poll}</td><td class="hide-narrow muted">${esc(x.last)}</td></tr>
+      ${expanded === x.id ? `<tr class="drawer"><td colspan="5">${manageHTML(x)}</td></tr>` : ""}`).join("")}
+    </tbody></table></div></div>`;
+}
+
+function renderC() {
+  const ev = (a, tone, title, sub, actions) => `<div class="event"><span class="strip" style="background:var(--${tone})"></span>${icon(a)}
+    <div class="t"><b>${title}</b><span>${sub}</span></div><div class="actions">${actions}</div></div>`;
+  const activity = `
+    <div class="group"><h3>Needs you</h3>
+      ${ev(byId("joplin"), "bad", "Joplin couldn't be checked", "GitHub's limit of 60 requests an hour without a token. Today 08:12",
+        `<button class="btn small" data-act="settings">Add token</button><button class="btn small" data-act="update" data-app="joplin">Try again</button>`)}
+      ${ev(byId("obsidian"), "warn", "Obsidian v1.10.0 is ready", "Downloaded and verified. It installs after you close Obsidian.",
+        `<button class="btn small" data-sheet="obsidian">Details</button>`)}
+    </div>
+    <div class="group"><h3>Found on this computer</h3>
+      ${found.map(f => `<div class="event"><span class="strip" style="background:var(--info)"></span><span class="appicon" style="background:var(--fg-2)">?</span>
+        <div class="t"><b class="mono" style="font-weight:500">${esc(f.path)}</b><span>Suggested source: ${esc(f.url)}</span></div>
+        <div class="actions"><button class="btn small primary" data-act="adopt">Manage</button><button class="btn small">Leave alone</button><button class="btn small">Skip</button></div></div>`).join("")}
+    </div>
+    <div class="group"><h3>Recently</h3>
+      ${ev(byId("neovim"), "good", "Neovim updated to v0.12.6", "Yesterday 07:41 · v0.12.5 kept for rollback", `<button class="btn small" data-act="rollback" data-app="neovim">Roll back</button>`)}
+      ${ev(byId("bitwarden"), "info", "Bitwarden rolled back to v2025.9.1", "Mon 10:02 · v2025.10.0 is skipped", `<button class="btn small" data-act="unskip" data-app="bitwarden">Allow v2025.10.0</button>`)}
+    </div>`;
+  const grid = `<div class="grid">${apps.map(x => `<button class="tile" data-sheet="${x.id}">${icon(x)}<b>${esc(x.overrides.Name ?? x.name)}</b>
+    <span class="mono muted">${x.version}</span>${statusPill(x)}</button>`).join("")}</div>`;
+  return `<div class="vc">${toolbar()}
+    <div class="tabs" role="tablist"><button role="tab" aria-selected="${tabC === "activity"}" data-tab="activity">Activity</button>
+      <button role="tab" aria-selected="${tabC === "apps"}" data-tab="apps">Apps (${apps.length})</button></div>
+    <div class="body">${tabC === "activity" ? activity : grid}
+      ${sheet ? `<div class="sheet-back" data-close-sheet><div class="sheet" role="dialog" aria-label="Manage ${esc(byId(sheet).name)}">
+        <div style="display:flex;justify-content:flex-end"><button class="btn small" data-close-sheet>Close</button></div>${manageHTML(byId(sheet))}</div></div>` : ""}
+    </div></div>`;
+}
+
+function panelD(a) {
+  const callout = {
+    restart: `<div class="callout warn"><b>${a.version} is installed.</b> ${esc(a.name)} is still running ${a.running}; reopen it to use the new version. AiM never closes your apps.</div>`,
+    failed: `<div class="callout bad"><b>The last check failed:</b> ${esc(a.error)}. A GitHub token in Settings raises the limit.</div>`,
+    skipped: `<div class="callout info">You rolled back from <b>${a.skipped}</b>, so checks skip it until a newer release appears.</div>`,
+  }[a.status] || "";
+  const field = (k, embedded) => {
+    const v = a.overrides[k];
+    return `<div class="field"><label for="d-${a.id}-${k}">${k}</label>
+      <input id="d-${a.id}-${k}" value="${esc(v ?? embedded)}" data-app="${a.id}" data-key="${k}">
+      <span class="src">${v != null ? `Yours · <button class="btn small" style="padding:0 6px" data-reset="${a.id}:${k}">use the AppImage's</button>` : "From the AppImage"}</span></div>`;
+  };
+  return `<div class="panel" role="region" aria-label="${esc(a.name)}">
+    <div class="top">${icon(a).replace('class="appicon"', 'class="appicon" style="width:46px;height:46px;font-size:20px;background:' + a.color + '"')}
+      <div style="min-width:0"><h2>${esc(a.overrides.Name ?? a.name)}</h2><div class="muted" style="font-size:13px">${a.version} · App ID <span class="mono">${a.id}</span></div></div>
+      <span class="spacer"></span>${statusPill(a)}<button class="close" data-close-d aria-label="Close ${esc(a.name)}">✕</button></div>
+    ${callout}
+    <div class="cols">
+      <div class="col">
+        <div class="actions">
+          <button class="btn primary" data-act="update" data-app="${a.id}">Check for updates</button>
+          ${a.previous ? `<button class="btn" data-act="rollback" data-app="${a.id}">Roll back to ${a.previous}</button>` : ""}
+          ${a.status === "skipped" ? `<button class="btn" data-act="unskip" data-app="${a.id}">Allow ${a.skipped}</button>` : `<button class="btn outlined" data-act="skip" data-app="${a.id}">Skip a release…</button>`}
+        </div>
+        <div class="section"><h3>Update checks</h3>
+          <div class="seg" role="group" aria-label="Poll rate">${["daily", "weekly", "monthly", "never"].map(p =>
+            `<button aria-pressed="${a.poll === p}" data-poll="${a.id}:${p}">${p[0].toUpperCase() + p.slice(1)}</button>`).join("")}</div>
+          <div class="muted" style="font-size:12px;margin-top:5px">Last check: ${esc(a.last)}</div></div>
+        <div class="section"><h3>Details</h3><dl class="kv">
+          <dt>Source</dt><dd class="mono">${esc(a.source)}</dd>
+          <dt>File pattern</dt><dd class="mono">${esc(a.pattern)}</dd>
+          <dt>Files</dt><dd class="mono">${HOME}/Applications/${a.id}/</dd>
+          <dt>Menu entry</dt><dd class="mono">${esc(a.desktop)}</dd></dl></div>
+      </div>
+      <div class="col">
+        <div class="section"><h3>In the application menu</h3><div class="fields">
+          ${field("Name", a.name)}${field("Categories", "Office;")}
+          <div class="field"><label>Icon</label><span style="display:flex;gap:8px;align-items:center">${icon(a).replace('class="appicon"', 'class="appicon" style="width:24px;height:24px;font-size:11px;border-radius:5px;background:' + a.color + '"')}
+            <button class="btn small">Choose…</button></span><span class="src">From the AppImage</span></div>
+        </div></div>
+        <div class="section"><h3>Launch</h3><div class="fields">
+          <div class="field"><label for="dargs-${a.id}">Arguments</label><input id="dargs-${a.id}" class="mono" value="${esc(a.args)}" placeholder="--ozone-platform=wayland"></div>
+          <div class="field"><label for="denv-${a.id}">Environment</label><input id="denv-${a.id}" class="mono" value="${esc(a.env)}" placeholder="KEY=value"></div>
+        </div></div>
+        <div class="section"><h3>Let go</h3><div class="actions">
+          <button class="btn" data-act="unmanage" data-app="${a.id}">Stop managing…</button>
+          <button class="btn danger" data-act="remove" data-app="${a.id}">Remove app…</button></div></div>
+      </div>
+    </div></div>`;
+}
+
+function renderD() {
+  const card = (a, tone, title, sub, choices) => `<div class="event app" data-goto-d="${a.id}" title="Open ${esc(a.name)} in Apps">
+    <span class="strip" style="background:var(--${tone})"></span>${icon(a)}
+    <div class="t"><b>${title}</b><span>${sub}</span></div><div class="actions">${choices}</div></div>`;
+  const needs = apps.filter(a => (a.status === "restart" && !a.dismissed) || a.status === "failed");
+  const activity = `
+    <div class="group"><h3>Needs you</h3>
+      ${needs.map(a => a.status === "failed"
+        ? card(a, "bad", `${esc(a.name)} couldn't be checked`, `${esc(a.error)}. Today 08:12`,
+            `<button class="btn small primary" data-act="settings">Add token</button><button class="btn small" data-act="update" data-app="${a.id}">Try again</button>`)
+        : card(a, "warn", `${esc(a.name)} updated to ${a.version}`, `Installed while it was open. Reopen ${esc(a.name)} to use the new version.`,
+            `<button class="btn small" data-act="rollback" data-app="${a.id}">Roll back to ${a.previous}</button><button class="btn small primary" data-act="dismiss" data-app="${a.id}">Got it</button>`)
+      ).join("") || `<div class="empty">Nothing needs your attention.</div>`}
+    </div>
+    ${found.length ? `<div class="group"><h3>Found on this computer</h3>
+      ${found.map(f => `<div class="event"><span class="strip" style="background:var(--info)"></span><span class="appicon" style="background:var(--raise);color:var(--fg-2)">?</span>
+        <div class="t"><b style="overflow-wrap:anywhere">${esc(f.path.split("/").pop())}</b><span>In ~/Downloads · ${esc(f.url.replace("https://", ""))}</span></div>
+        <div class="actions"><button class="btn small primary" data-act="adopt">Manage</button><button class="btn small" data-act="leave" data-path="${esc(f.path)}">Leave alone</button><button class="btn small outlined" data-act="skipfound" data-path="${esc(f.path)}">Skip</button></div></div>`).join("")}
+    </div>` : ""}`;
+  const grid = `<div class="grid">${apps.map(x => `<button class="tile" data-open-d="${x.id}" aria-current="${openD === x.id}">${icon(x)}<b>${esc(x.overrides.Name ?? x.name)}</b>
+    <span class="mono muted">${x.version}</span>${statusPill(x)}</button>`).join("")}
+    <button class="tile addtile" data-act="add"><span class="appicon" style="background:transparent;border:1px dashed var(--fg-2);color:var(--fg-2)">+</span>
+      <b>Add an app</b><span class="muted" style="font-size:12px">Drop an AppImage file here, paste a link, or click</span></button></div>`;
+  const open = tabD === "apps" && openD;
+  const entering = open && openD !== lastOpenD; // animate only when a panel first opens
+  lastOpenD = open ? openD : null;
+  return `<div class="vd">${toolbar()}
+    <div class="tabs" role="tablist"><button role="tab" aria-selected="${tabD === "activity"}" data-tab-d="activity">Activity${needs.length ? ` (${needs.length})` : ""}</button>
+      <button role="tab" aria-selected="${tabD === "apps"}" data-tab-d="apps">Apps (${apps.length})</button></div>
+    <div class="split${open ? " open" : ""}${entering ? " entering" : ""}"><div class="main">${tabD === "activity" ? activity : grid}</div>
+      ${open ? panelD(byId(openD)).replace('class="panel"', `class="panel${entering ? " entering" : ""}"`) : ""}</div></div>`;
+}
+
+function render() {
+  const win = document.getElementById("window");
+  win.innerHTML = `<div class="titlebar"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent-ink)" stroke-width="2.4" stroke-linecap="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 19h16"/></svg>
+    <strong>AiM</strong><span class="muted">AppImage Manager</span><span class="dots"><span></span><span></span><span></span></span></div>`
+    + ({ d: renderD, a: renderA, c: renderC }[variant])();
+  document.getElementById("vLabel").textContent = `${V[variant]}  (${Object.keys(V).indexOf(variant) + 1}/${Object.keys(V).length})`;
+  const attention = apps.filter(a => a.status === "restart" || a.status === "failed").length;
+  const badge = document.getElementById("trayBadge");
+  badge.hidden = !attention; badge.textContent = attention;
+}
+
+/* tray */
+function renderTray() {
+  const staged = apps.filter(a => a.status === "restart"), failed = apps.filter(a => a.status === "failed");
+  document.getElementById("trayMenu").innerHTML = `<div class="head">AiM</div>
+    ${staged.map(a => `<button class="item" data-tray-open="${a.id}">${icon(a)}<span>${esc(a.name)} updated to ${a.version}<small>Reopen it to use the new version</small></span></button>`).join("")}
+    ${failed.map(a => `<button class="item" data-tray-open="${a.id}">${icon(a)}<span>${esc(a.name)}: check failed<small>${esc(a.error)}</small></span></button>`).join("")}
+    ${staged.length + failed.length === 0 ? `<div class="item muted">Nothing needs your attention</div>` : ""}
+    <div class="sep"></div>
+    <button class="item" data-act="checkall">Check all now<small>Last automatic checks: today</small></button>
+    <button class="item" data-tray-open="">Open AiM</button>
+    <div class="sep"></div>
+    <button class="item">Quit the tray icon<small>Updates still run from the timers</small></button>`;
+}
+const trayBtn = document.getElementById("trayBtn"), trayMenu = document.getElementById("trayMenu");
+trayBtn.addEventListener("click", e => { e.stopPropagation(); renderTray(); trayMenu.hidden = !trayMenu.hidden; trayBtn.setAttribute("aria-expanded", !trayMenu.hidden); });
+document.addEventListener("click", e => { if (!trayMenu.hidden && !trayMenu.contains(e.target)) { trayMenu.hidden = true; trayBtn.setAttribute("aria-expanded", "false"); } });
+
+/* dialogs */
+const root = document.getElementById("dialogRoot");
+function dialog(html) { root.innerHTML = `<div class="scrim" data-scrim>${html}</div>`; root.querySelector("input,button.primary,button")?.focus(); }
+function closeDialog() { root.innerHTML = ""; }
+
+/* Add: from a link (aim add) or from a file already on this computer (aim adopt), one Question per
+   step, the way aim-gui would get them from aim --json. */
+const downloads = ["~/Downloads/Obsidian-1.8.2.AppImage", "~/Downloads/LocalSend-1.15.4-linux-x86-64.AppImage", "~/Downloads/kdenlive-25.08.1-x86_64.AppImage"];
+let addState = null;
+function addFlow(opts = {}) {
+  addState = { step: 0, mode: opts.mode || "link", url: opts.url ?? "https://github.com/neovim/neovim/releases/download/v0.12.6/nvim-linux-x86_64.appimage",
+    file: opts.file || null, source: "", version: null, versionTyped: "", id: "neovim", shadow: null, poll: "weekly" };
+  addStep();
+}
+function addStep() {
+  const s = addState;
+  const steps = s.mode === "link" ? 4 : 5;
+  const bar = `<div class="steps">${Array.from({ length: steps }, (_, i) => `<span class="${i <= s.step ? "on" : ""}"></span>`).join("")}</div>`;
+  const shell = (title, body, next, nextLabel = "Continue", ready = true) => dialog(`<div class="dialog" role="dialog" aria-modal="true" aria-label="${esc(title)}">
+    <header><h2>${title}</h2>${bar}</header><div class="content">${body}</div>
+    <footer>${s.step ? `<button class="btn" data-add="back">Back</button>` : ""}<button class="btn" data-add="cancel">Cancel</button>
+    <button class="btn primary" data-add="${next}" ${ready ? "" : "disabled"}>${nextLabel}</button></footer></div>`);
+  const fileName = s.file ? s.file.split("/").pop() : "";
+
+  if (s.step === 0) {
+    shell("Add an app", `
+      <label class="opt"><input type="radio" name="mode" value="link" data-mode ${s.mode === "link" ? "checked" : ""}>
+        <span style="flex:1;min-width:0;display:grid;gap:8px"><b>From a link</b>
+        <span class="muted">A GitHub repository, its releases page, or a direct AppImage download link</span>
+        <input type="text" id="addUrl" class="mono" value="${esc(s.url)}" ${s.mode === "link" ? "" : "disabled"}></span></label>
+      <label class="opt"><input type="radio" name="mode" value="file" data-mode ${s.mode === "file" ? "checked" : ""}>
+        <span style="flex:1;min-width:0;display:grid;gap:8px"><b>From a file on this computer</b>
+        <span class="muted">An AppImage you've already downloaded. AiM moves it into place and keeps it updated.</span>
+        ${s.mode === "file" ? `<span style="display:grid;gap:4px">${downloads.map(f => `<button type="button" class="btn small ${s.file === f ? "primary" : ""}" style="text-align:left;white-space:normal;overflow-wrap:anywhere" data-pick="${esc(f)}">${esc(f)}</button>`).join("")}
+          <button type="button" class="btn small outlined" style="justify-self:start">Browse…</button></span>` : ""}</span></label>
+      <div class="muted" style="font-size:12px">Tip: you can also drop an AppImage file onto AiM's window, or paste a link into it (Ctrl+V).</div>`,
+      "next", s.mode === "link" ? "Look up" : "Continue", s.mode === "link" || !!s.file);
+    return;
+  }
+  if (s.mode === "link") {
+    if (s.step === 1) shell("Add an app", `<div class="callout info">Downloaded <b>nvim-linux-x86_64.appimage</b> (v0.12.6, 10.9 MB). Its checksum matches the one GitHub publishes.</div>
+      <label for="appId"><b>App ID</b></label><input type="text" id="appId" class="mono" value="${esc(s.id)}">
+      <div class="callout warn">The App ID names its folder and files. <b>It can't be changed later</b> without removing and re-adding the app.</div>`, "next");
+    if (s.step === 2) shell("Add an app", `<p style="margin:0"><span class="mono">/usr/share/applications/nvim.desktop</span> already exists (from a system package).
+      A menu entry with the same name would hide it.</p>
+      <label class="opt"><input type="radio" name="sh" value="rename" checked><span><b>Use ${esc(s.id)}.desktop instead</b><br><span class="muted">Both stay in the menu</span></span></label>
+      <label class="opt"><input type="radio" name="sh" value="hide"><span><b>Use nvim.desktop anyway</b><br><span class="muted">Hides the system package's entry</span></span></label>`, "next");
+    if (s.step === 3) shell("Add an app", planBody(`~/Applications/${esc(s.id)}/${esc(s.id)}.AppImage`, s.shadow === "hide" ? "nvim" : s.id, "Neovim",
+      `Exec=~/Applications/${esc(s.id)}/${esc(s.id)}.AppImage %F\nTerminal=true\nCategories=Utility;TextEditor;Development;`), "finish", "Add Neovim");
+    return;
+  }
+  // from a file
+  if (s.step === 1) shell(`Add ${esc(fileName)}`, `<p style="margin:0">Where does it come from? AiM checks there for new versions.</p>
+    <input type="text" id="addSource" class="mono" value="${esc(s.source || "https://github.com/obsidianmd/obsidian-releases")}">
+    <div class="muted" style="font-size:12px">Suggested from the update information inside the AppImage.</div>`, "next");
+  if (s.step === 2) {
+    const typed = s.version === "typed";
+    shell(`Add ${esc(fileName)}`, `<div class="callout warn">AiM can't tell for sure which version this is. It matches none of the recent releases' checksums.</div>
+      <p style="margin:0">Its best guess is <b>1.8.2</b>, from its filename. Choose one:</p>
+      <label class="opt"><input type="radio" name="ver" value="guess" data-ver ${s.version === "guess" ? "checked" : ""}><span>Use <b>1.8.2</b></span></label>
+      <label class="opt"><input type="radio" name="ver" value="typed" data-ver ${typed ? "checked" : ""}><span style="flex:1;display:grid;gap:6px">Enter the version
+        <input type="text" id="verTyped" class="mono" placeholder="e.g. v1.8.2" value="${esc(s.versionTyped)}" ${typed ? "" : "disabled"}></span></label>
+      <label class="opt"><input type="radio" name="ver" value="latest" data-ver ${s.version === "latest" ? "checked" : ""}><span>Replace it with the latest release, <b>v1.10.0</b>, now</span></label>`,
+      "next", "Continue", !!s.version);
+  }
+  if (s.step === 3) shell(`Add ${esc(fileName)}`, `<label for="appId"><b>App ID</b></label><input type="text" id="appId" class="mono" value="obsidian">
+    <div class="callout warn">The App ID names its folder and files. <b>It can't be changed later</b> without removing and re-adding the app.</div>`, "next");
+  if (s.step === 4) shell(`Add ${esc(fileName)}`, planBody("~/Applications/obsidian/obsidian.AppImage", "md.obsidian.Obsidian", "Obsidian",
+    "Exec=~/Applications/obsidian/obsidian.AppImage --no-sandbox %U\nCategories=Office;",
+    `move <span class="mono">${esc(s.file)}</span> into <span class="mono">~/Applications/obsidian/</span>`), "finish", "Add Obsidian");
+}
+function planBody(appImage, desktopName, name, lines, first) {
+  return `<p style="margin:0">AiM will:</p><ul class="plan">
+    ${first ? `<li>${first}</li>` : `<li>create <span class="mono">${esc(appImage.replace(/[^/]+$/, ""))}</span></li><li>install <span class="mono">${esc(appImage)}</span></li>`}
+    <li>write its icon and the menu entry <span class="mono">~/.local/share/applications/${esc(desktopName)}.desktop</span></li>
+    <li>${addState.poll === "never" ? "not check it for updates" : `check for updates ${addState.poll}`}</li></ul>
+    <pre class="preview">[Desktop Entry]
+Name=${esc(name)}
+${lines}
+Icon=${esc(appImage.replace(/\.AppImage$/, ".png"))}
+X-AiM-Managed=true</pre>
+    <div><div class="muted" style="font-size:12px;margin-bottom:4px">Check for updates</div>
+    <div class="seg" role="group" aria-label="Poll rate">${["daily", "weekly", "monthly", "never"].map(p => `<button type="button" aria-pressed="${p === addState.poll}" data-add-poll="${p}">${p[0].toUpperCase() + p.slice(1)}</button>`).join("")}</div></div>`;
+}
+
+/* Consolidation: Adopt of ~/Downloads/Obsidian-1.8.2.AppImage when the user already has my-obsidian.desktop */
+const consRows = [
+  { key: "Name", a: "My Obsidian", b: "Obsidian" },
+  { key: "Categories", a: "Utility;", b: "Office;", both: "Utility;Office;" },
+  { key: "Comment", a: "Notes vault", b: "Obsidian" },
+];
+let consPick = {};
+function consolidation() {
+  const done = consRows.every(r => consPick[r.key]);
+  const val = r => ({ a: r.a, b: r.b, c: r.both }[consPick[r.key]]);
+  const lines = consRows.map(r => consPick[r.key] ? `<span class="changed">${r.key}=${esc(val(r))}</span>` : `${r.key}=<span class="muted">(choose)</span>`).join("\n");
+  dialog(`<div class="dialog" role="dialog" aria-modal="true" aria-label="Combine menu entries" style="width:min(720px,100%)">
+    <header><h2>Adopt Obsidian-1.8.2.AppImage</h2><div class="muted" style="font-size:13px;margin-top:4px">Your menu entry <span class="mono">my-obsidian.desktop</span> and the AppImage's own disagree on ${consRows.length} values. Choose each one.</div></header>
+    <div class="content"><div class="conswrap"><table class="cons"><thead><tr><th>Field</th><th>a) Yours</th><th>b) The AppImage's</th><th>c) Both</th></tr></thead><tbody>
+    ${consRows.map(r => `<tr><td><b>${r.key}</b></td>${["a", "b", "c"].map(k => {
+      const v = { a: r.a, b: r.b, c: r.both }[k];
+      return `<td>${v ? `<label><input type="radio" name="c-${r.key}" value="${k}" ${consPick[r.key] === k ? "checked" : ""} data-cons="${r.key}"><code>"${esc(v)}"</code></label>` : `<span class="muted">—</span>`}</td>`;
+    }).join("")}</tr>`).join("")}</tbody></table></div>
+    <div class="callout info">Your launch settings <span class="mono">env GDK_SCALE=2 … --disable-gpu</span> are kept.</div>
+    <div><div class="muted" style="font-size:12px;margin-bottom:4px">The menu entry AiM will write</div><pre class="preview">[Desktop Entry]
+${lines}
+Exec=env GDK_SCALE=2 ~/Applications/obsidian/obsidian.AppImage --disable-gpu --no-sandbox %U
+Icon=~/Applications/obsidian/obsidian.png</pre></div>
+    <label class="opt"><input type="checkbox" checked><span>Delete <span class="mono">my-obsidian.desktop</span> afterwards, so Obsidian isn't listed twice</span></label></div>
+    <footer><span class="muted" style="margin-right:auto;font-size:12.5px;align-self:center">${done ? "Ready" : `${consRows.filter(r => !consPick[r.key]).length} still to choose`}</span>
+      <button class="btn" data-close>Cancel</button><button class="btn primary" ${done ? "" : "disabled"} data-close>Adopt</button></footer></div>`);
+}
+
+/* Removal Plans */
+function removalPlan(id, kind) {
+  const a = byId(id);
+  const unmanage = kind === "unmanage";
+  dialog(`<div class="dialog" role="dialog" aria-modal="true" aria-label="Removal plan">
+    <header><h2>${unmanage ? `Stop managing ${esc(a.name)}?` : `Remove ${esc(a.name)}?`}</h2>
+      <div class="muted" style="font-size:13px;margin-top:4px">${unmanage ? "It stays installed and keeps working; AiM just lets go." : "This deletes the app."}</div></header>
+    <div class="content"><ul class="plan">
+      <li>stop and delete <span class="mono">aim-check@${a.id}.timer</span></li>
+      ${unmanage ? `<li>remove AiM's markers from <span class="mono">${esc(a.desktop)}</span></li>` :
+        `<li>delete the menu entry <span class="mono">${esc(a.desktop)}</span></li><li>delete <span class="mono">~/Applications/${a.id}/</span></li>`}
+    </ul>
+    ${unmanage && a.previous ? `<fieldset style="border:0;padding:0;margin:0;display:grid;gap:6px"><legend style="font-weight:600;margin-bottom:6px">Previous version (${a.previous})</legend>
+      <label class="opt"><input type="radio" name="prev" checked><span>Delete it</span></label><label class="opt"><input type="radio" name="prev"><span>Keep it</span></label></fieldset>` : ""}
+    ${unmanage ? `<fieldset style="border:0;padding:0;margin:0;display:grid;gap:6px"><legend style="font-weight:600;margin-bottom:6px">Files</legend>
+      <label class="opt"><input type="radio" name="lay" checked><span>Leave them in <span class="mono">~/Applications/${a.id}/</span></span></label>
+      <label class="opt"><input type="radio" name="lay"><span>Move to <span class="mono">~/Applications/${esc(a.name)}.AppImage</span> and the icon theme</span></label></fieldset>` : ""}
+    </div><footer><button class="btn" data-close>Cancel</button><button class="btn ${unmanage ? "primary" : "danger"}" data-close>${unmanage ? "Stop managing" : "Remove"}</button></footer></div>`);
+}
+
+function scanDialog() {
+  dialog(`<div class="dialog" role="dialog" aria-modal="true" aria-label="Find AppImages"><header><h2>AppImages AiM doesn't manage yet</h2></header>
+    <div class="content">${found.map(f => `<div class="event" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;border:1px solid var(--line);border-radius:8px;padding:10px">
+      <div style="flex:1;min-width:220px"><div class="mono">${esc(f.path)}</div><div class="muted" style="font-size:12.5px">Suggested source: ${esc(f.url)}</div></div>
+      <div class="actions"><button class="btn small primary" data-act="adopt">Manage</button><button class="btn small" data-act="leave" data-path="${esc(f.path)}">Leave alone</button><button class="btn small outlined" data-act="skipfound" data-path="${esc(f.path)}">Skip</button></div></div>`).join("") || `<div class="muted">Nothing left to review.</div>`}</div>
+    <footer><button class="btn" data-close>Done</button></footer></div>`);
+}
+
+/* toasts: one at a time, gone after 7 seconds */
+let toastTimer;
+function toast(html, undo) {
+  const rootT = document.getElementById("toastRoot");
+  clearTimeout(toastTimer);
+  rootT.innerHTML = `<div class="toast" role="status"><span class="t">${html}</span>${undo ? `<button id="toastUndo">Undo</button>` : ""}<button class="x" id="toastX" aria-label="Dismiss">✕</button></div>`;
+  const close = () => { rootT.innerHTML = ""; };
+  if (undo) document.getElementById("toastUndo").onclick = () => { close(); undo(); };
+  document.getElementById("toastX").onclick = close;
+  toastTimer = setTimeout(close, 7000);
+}
+
+/* theme preview */
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-theme-set]"); if (!b) return;
+  const v = b.dataset.themeSet;
+  if (v) document.documentElement.setAttribute("data-theme", v); else document.documentElement.removeAttribute("data-theme");
+  document.querySelectorAll("[data-theme-set]").forEach(x => x.setAttribute("aria-pressed", x === b));
+});
+document.querySelector('[data-theme-set=""]').setAttribute("aria-pressed", "true");
+
+/* Settings: config.toml values, the tray, and leaving AiM */
+let settings = { token: "", poll: "weekly", notify: { updated: true, failed: true, mismatch: true }, autostart: true };
+function settingsDialog() {
+  const sw = (key, label, hint) => `<label class="opt"><input type="checkbox" data-notify="${key}" ${settings.notify[key] ? "checked" : ""}>
+    <span><b>${label}</b><br><span class="muted">${hint}</span></span></label>`;
+  dialog(`<div class="dialog" role="dialog" aria-modal="true" aria-label="Settings" style="width:min(680px,100%)">
+    <header><h2>Settings</h2><div class="muted" style="font-size:12.5px;margin-top:4px">Saved in <span class="mono">~/.config/aim/config.toml</span></div></header>
+    <div class="content">
+      <div class="section"><h3>GitHub token</h3>
+        <input type="text" id="setToken" class="mono" placeholder="github_pat_…" value="${esc(settings.token)}" autocomplete="off">
+        <div class="muted" style="font-size:12px;margin-top:6px">Optional. Without one, GitHub allows 60 update lookups an hour; with one, 5,000.
+          A token with no permissions is enough. Create one at github.com/settings/personal-access-tokens.
+          The <span class="mono">GITHUB_TOKEN</span> environment variable, if set, takes precedence.</div></div>
+      <div class="section"><h3>Update checks for new apps</h3>
+        <div class="seg" role="group" aria-label="Default poll rate">${["daily", "weekly", "monthly", "never"].map(p =>
+          `<button aria-pressed="${settings.poll === p}" data-set-poll="${p}">${p[0].toUpperCase() + p.slice(1)}</button>`).join("")}</div>
+        <div class="muted" style="font-size:12px;margin-top:6px">Each app keeps its own setting; change it in its panel.</div></div>
+      <div class="section"><h3>Notifications</h3><div style="display:grid;gap:6px">
+        ${sw("updated", "An app was updated", "Including when it's still open and needs reopening")}
+        ${sw("failed", "An update check failed", "After AiM has tried three times")}
+        ${sw("mismatch", "A download didn't match its checksum", "AiM never installs it")}</div></div>
+      <div class="section"><h3>Tray icon</h3>
+        <label class="opt"><input type="checkbox" id="setAutostart" ${settings.autostart ? "checked" : ""}><span><b>Show the tray icon when I log in</b><br>
+          <span class="muted">Updates run from AiM's timers either way</span></span></label></div>
+      <div class="section"><h3>Leave AiM</h3>
+        <div class="muted" style="font-size:12px;margin-bottom:8px">Your apps stay installed and keep working. AiM removes its timers, markers and records.</div>
+        <button class="btn danger" data-act="uninstall">Uninstall AiM…</button></div>
+    </div>
+    <footer><button class="btn" data-close>Cancel</button><button class="btn primary" data-act="savesettings">Save</button></footer></div>`);
+}
+function uninstallDialog(choice) {
+  dialog(`<div class="dialog" role="dialog" aria-modal="true" aria-label="Uninstall AiM"><header><h2>Uninstall AiM?</h2>
+    <div class="muted" style="font-size:13px;margin-top:4px">Your ${apps.length} apps stay installed and keep working.</div></header>
+    <div class="content"><ul class="plan">
+      ${apps.map(a => `<li>stop managing <b>${esc(a.name)}</b>: remove its timer and AiM's markers from <span class="mono">${esc(a.desktop)}</span></li>`).join("")}
+      <li>delete the tray's login entry <span class="mono">~/.config/autostart/aim-gui.desktop</span></li>
+      <li>delete <span class="mono">~/.local/share/aim</span> and <span class="mono">~/.cache/aim</span></li>
+      <li>delete <span class="mono">~/.local/bin/aim</span> and <span class="mono">~/.local/bin/aim-gui</span></li></ul>
+    <div class="muted" style="font-size:12.5px">Previous versions are deleted and files stay where they are. Each app can be let go differently from its own panel first.</div>
+    <fieldset style="border:0;padding:0;margin:0;display:grid;gap:6px"><legend style="font-weight:600;margin-bottom:6px">Your settings in ~/.config/aim</legend>
+      <label class="opt"><input type="radio" name="cfg" value="keep" data-cfg ${choice === "keep" ? "checked" : ""}><span>Keep them, in case you use AiM again</span></label>
+      <label class="opt"><input type="radio" name="cfg" value="delete" data-cfg ${choice === "delete" ? "checked" : ""}><span>Delete them</span></label></fieldset></div>
+    <footer><span class="muted" style="margin-right:auto;font-size:12.5px;align-self:center">${choice ? "" : "Choose what happens to your settings"}</span>
+      <button class="btn" data-close>Cancel</button><button class="btn danger" data-close ${choice ? "" : "disabled"}>Uninstall</button></footer></div>`);
+}
+document.addEventListener("change", e => {
+  if (e.target.dataset.notify) settings.notify[e.target.dataset.notify] = e.target.checked;
+  if (e.target.dataset.cfg !== undefined) uninstallDialog(e.target.value);
+});
+
+/* events */
+document.addEventListener("click", e => {
+  const sp = e.target.closest("[data-set-poll]");
+  if (sp) { settings.poll = sp.dataset.setPoll; return settingsDialog(); }
+  const ap = e.target.closest("[data-add-poll]");
+  if (ap) { addState.poll = ap.dataset.addPoll; return addStep(); }
+  const pick = e.target.closest("[data-pick]");
+  if (pick) { addState.file = pick.dataset.pick; return addStep(); }
+  const tD = e.target.closest("[data-open-d],[data-close-d],[data-tab-d],[data-goto-d]");
+  const control = e.target.closest("button,input,label,a");
+  if (tD && (!control || control === tD)) {
+    if (tD.dataset.gotoD) { tabD = "apps"; openD = tD.dataset.gotoD; }
+    if (tD.dataset.openD) openD = tD.dataset.openD;
+    if (tD.dataset.closeD !== undefined) openD = null;
+    if (tD.dataset.tabD) tabD = tD.dataset.tabD;
+    return render();
+  }
+  const t = e.target.closest("[data-act],[data-select],[data-expand],[data-tab],[data-sheet],[data-close-sheet],[data-poll],[data-reset],[data-add],[data-close],[data-scrim],[data-tray-open],[data-cons]");
+  if (!t) return;
+  const d = t.dataset;
+  if (d.scrim !== undefined && e.target === t) return closeDialog();
+  if (d.close !== undefined) return closeDialog();
+  if (d.select) { selected = d.select; return render(); }
+  if (d.expand) { expanded = expanded === d.expand ? null : d.expand; return render(); }
+  if (d.tab) { tabC = d.tab; sheet = null; return render(); }
+  if (d.sheet) { sheet = d.sheet; return render(); }
+  if (d.closeSheet !== undefined && (e.target === t || t.tagName === "BUTTON")) { sheet = null; return render(); }
+  if (d.poll) { const [id, p] = d.poll.split(":"); byId(id).poll = p; if (p === "never") byId(id).status = "idle"; return render(); }
+  if (d.reset) { const [id, k] = d.reset.split(":"); byId(id).overrides[k] = null; return render(); }
+  if (d.trayOpen !== undefined) { trayMenu.hidden = true; if (d.trayOpen) { selected = expanded = openD = d.trayOpen; if (variant === "c") sheet = d.trayOpen; } return render(); }
+  if (d.cons) { consPick[d.cons] = t.value; return consolidation(); }
+  if (d.add) {
+    const st = addState;
+    if (d.add === "cancel") return closeDialog();
+    if (d.add === "back") { st.step--; return addStep(); }
+    if (d.add === "finish") { closeDialog(); toast(st.poll === "never" ? `<b>Added.</b> Update checks are off; turn them on in its panel.` : `<b>Added.</b> AiM will check it for updates ${st.poll}.`); return; }
+    if (st.step === 0 && st.mode === "link") st.url = document.getElementById("addUrl").value;
+    if (st.mode === "link" && st.step === 1) st.id = document.getElementById("appId").value.trim() || "neovim";
+    if (st.mode === "link" && st.step === 2) st.shadow = root.querySelector('input[name="sh"]:checked').value;
+    if (st.mode === "file" && st.step === 1) st.source = document.getElementById("addSource").value;
+    if (st.mode === "file" && st.step === 2 && st.version === "typed") st.versionTyped = document.getElementById("verTyped").value;
+    st.step++; return addStep();
+  }
+  const act = d.act;
+  if (act === "add") return addFlow();
+  if (act === "settings") return settingsDialog();
+  if (act === "uninstall") return uninstallDialog(null);
+  if (act === "savesettings") { settings.token = document.getElementById("setToken").value.trim(); settings.autostart = document.getElementById("setAutostart").checked;
+    closeDialog(); toast("<b>Settings saved.</b>"); return; }
+  if (act === "scan") return scanDialog();
+  if (act === "adopt") { consPick = {}; return consolidation(); }
+  if (act === "remove" || act === "unmanage") return removalPlan(d.app, act);
+  if (act === "rollback") {
+    const a = byId(d.app); if (!a.previous) return;
+    const from = a.version; a.version = a.previous; a.previous = null; a.status = "skipped"; a.skipped = from; a.dismissed = true;
+    toast(`<b>${esc(a.name)} is back on ${a.version}.</b> ${from} is skipped${a.running ? `; reopen ${esc(a.name)} to use ${a.version}` : ""}.`);
+    a.running = null; return render();
+  }
+  if (act === "skip") {
+    const a = byId(d.app);
+    dialog(`<div class="dialog" role="dialog" aria-modal="true" aria-label="Skip a release"><header><h2>Skip a release of ${esc(a.name)}</h2></header>
+      <div class="content"><p style="margin:0">Update checks won't install the release you skip. A newer release installs as usual.</p>
+      <label for="skipTag"><b>Release to skip</b></label><input type="text" id="skipTag" class="mono" value="v1.10.1">
+      <div class="muted" style="font-size:12px">Suggested: the latest release on GitHub. To undo a skip, use “Allow” in the app's panel.</div></div>
+      <footer><button class="btn" data-close>Cancel</button><button class="btn primary" data-act="skipdo" data-app="${a.id}">Skip it</button></footer></div>`);
+    return;
+  }
+  if (act === "skipdo") {
+    const a = byId(d.app); a.skipped = document.getElementById("skipTag").value.trim(); if (a.status === "ok") a.status = "skipped";
+    closeDialog(); toast(`<b>${esc(a.name)} ${esc(a.skipped)} will be skipped.</b>`); return render();
+  }
+  if (act === "dismiss") { byId(d.app).dismissed = true; return render(); }
+  if (act === "leave" || act === "skipfound") {
+    const i = found.findIndex(f => f.path === d.path); if (i < 0) return;
+    const [f] = found.splice(i, 1);
+    const name = f.path.split("/").pop();
+    toast(act === "skipfound"
+      ? `<b>Skipped ${esc(name)}.</b> AiM will ask about it again next time it looks for AppImages.`
+      : `<b>AiM won't ask about ${esc(name)} again.</b> It stays where it is.`);
+    if (root.innerHTML) scanDialog();
+    return render();
+  }
+  if (act === "unskip") { const a = byId(d.app); a.status = "ok"; a.skipped = null; return render(); }
+  if (act === "update" && byId(d.app)?.status === "failed") { byId(d.app).status = "ok"; byId(d.app).last = "just now · up to date"; return render(); }
+});
+document.addEventListener("input", e => {
+  const k = e.target.dataset.key; if (!k) return;
+  const a = byId(e.target.dataset.app); a.overrides[k] = e.target.value;
+});
+document.addEventListener("change", e => {
+  if (e.target.dataset.key) render();
+  if (e.target.dataset.mode !== undefined) { if (addState.mode === "link") addState.url = document.getElementById("addUrl").value; addState.mode = e.target.value; addStep(); }
+  if (e.target.dataset.ver !== undefined) { addState.version = e.target.value; addStep(); }
+});
+document.addEventListener("submit", e => { e.preventDefault(); if (e.target.id === "pasteForm") addFlow({ url: document.getElementById("pasteUrl").value }); });
+
+/* dropping an AppImage or a link onto the window starts Add with it */
+const win = document.getElementById("window");
+win.addEventListener("dragover", e => { e.preventDefault(); win.classList.add("drop"); });
+win.addEventListener("dragleave", () => win.classList.remove("drop"));
+win.addEventListener("drop", e => {
+  e.preventDefault(); win.classList.remove("drop");
+  // Fyne only receives dropped files (Window.SetOnDropped), so links are pasted, not dropped.
+  const file = e.dataTransfer.files?.[0];
+  if (file) addFlow({ mode: "file", file: "~/Downloads/" + file.name });
+});
+document.addEventListener("paste", e => {
+  if (e.target.closest("input,textarea") || root.innerHTML) return;
+  const text = (e.clipboardData?.getData("text/plain") || "").trim();
+  if (/^https?:\/\//.test(text)) addFlow({ mode: "link", url: text });
+});
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") { const had = root.innerHTML; closeDialog(); trayMenu.hidden = true; sheet = null; if (!had) openD = null; return render(); }
+  if (e.target.closest("input,textarea,[contenteditable]") || root.innerHTML) return;
+  if (e.key === "ArrowRight") cycle(1);
+  if (e.key === "ArrowLeft") cycle(-1);
+  if ((e.key === "Enter" || e.key === " ") && e.target.dataset.expand) { e.preventDefault(); e.target.click(); }
+});
+function cycle(step) {
+  const keys = Object.keys(V); variant = keys[(keys.indexOf(variant) + step + keys.length) % keys.length];
+  try { history.replaceState(null, "", "#" + variant); } catch {}
+  sheet = null; render();
+}
+document.getElementById("prevV").onclick = () => cycle(-1);
+document.getElementById("nextV").onclick = () => cycle(1);
+render();
+</script>
