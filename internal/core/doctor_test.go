@@ -96,7 +96,7 @@ func TestDoctorReportsAShadowedSystemEntry(t *testing.T) {
 func TestDoctorSuggestsATokenWhenGitHubsRateLimitStoppedChecks(t *testing.T) {
 	w := newWorld(t)
 	addObsidian(t, w, obsidianImage)
-	w.source.failWith = fmt.Errorf("GitHub https://api.github.com/repos/obsidianmd/obsidian-releases/releases/latest: %w", source.ErrRateLimited)
+	w.source.FailWith = fmt.Errorf("GitHub https://api.github.com/repos/obsidianmd/obsidian-releases/releases/latest: %w", source.ErrRateLimited)
 	w.core().Check(context.Background(), "obsidian")
 
 	onlyProblem(t, w, "github_token")

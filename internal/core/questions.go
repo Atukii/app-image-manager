@@ -18,6 +18,8 @@ type Question struct {
 	ID      string   `json:"id"`
 	Prompt  string   `json:"prompt"`
 	Options []Option `json:"options,omitempty"` // empty for free text
+	// Free allows answers other than the Options' keys, typed by the user.
+	Free bool `json:"free,omitempty"`
 	// Default is the suggested answer; nil means there is none and the user
 	// must choose.
 	Default *string `json:"default,omitempty"`

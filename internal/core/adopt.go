@@ -176,6 +176,7 @@ func askVersion(ctx context.Context, o opts, path string, info appimage.Info, la
 	}
 	q := Question{
 		ID:   "adopt.version",
+		Free: true,
 		Flag: "--version <v> or --install-latest",
 		Prompt: fmt.Sprintf("AiM can't tell for sure which version %s is. "+
 			"Type its version, or choose an option.", name),

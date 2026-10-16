@@ -91,14 +91,14 @@ func TestTheNextCheckAfterTheAppClosesSwapsInTheStagedUpdate(t *testing.T) {
 	ctx := context.Background()
 	w.core().Check(ctx, "obsidian")
 	stop()
-	downloadsBefore := w.downloads
+	downloadsBefore := w.source.Downloads
 
 	results, _ := w.core().Check(ctx, "obsidian")
 
 	installed, _ := os.ReadFile(w.path("Applications/obsidian/obsidian.AppImage"))
-	if results[0].Result != "installed" || string(installed) != string(contents["Obsidian-1.10.0.AppImage"]) || w.downloads != downloadsBefore {
+	if results[0].Result != "installed" || string(installed) != string(contents["Obsidian-1.10.0.AppImage"]) || w.source.Downloads != downloadsBefore {
 		t.Fatalf("got %+v, %d more downloads; want the staged v1.10.0 installed without downloading again",
-			results, w.downloads-downloadsBefore)
+			results, w.source.Downloads-downloadsBefore)
 	}
 }
 
@@ -151,7 +151,7 @@ func TestASwapRebuildsTheDesktopEntryAndIconFromTheNewAppImage(t *testing.T) {
 func TestCheckRetriesThreeTimesThenNotifiesTheFailure(t *testing.T) {
 	w := newWorld(t)
 	addObsidian(t, w, obsidianImage)
-	w.source.failures = 4
+	w.source.Failures = 4
 
 	results, _ := w.core().Check(context.Background(), "obsidian")
 
@@ -167,7 +167,7 @@ func TestCheckSucceedsSilentlyWhenARetryWorks(t *testing.T) {
 	w := newWorld(t)
 	addObsidian(t, w, obsidianImage)
 	w.publish("v1.10.0", oct10, map[string]testkit.AppImage{"Obsidian-1.10.0.AppImage": obsidian110})
-	w.source.failures = 1
+	w.source.Failures = 1
 
 	results, _ := w.core().Check(context.Background(), "obsidian")
 
@@ -199,13 +199,13 @@ func TestARejectedReleaseIsNotDownloadedOrReportedAgain(t *testing.T) {
 	w.tamper("v1.10.0", "Obsidian-1.10.0.AppImage")
 	ctx := context.Background()
 	w.core().Check(ctx, "obsidian")
-	downloads, notified := w.downloads, len(w.notified)
+	downloads, notified := w.source.Downloads, len(w.notified)
 
 	w.core().Check(ctx, "obsidian")
 
-	if w.downloads != downloads || len(w.notified) != notified {
+	if w.source.Downloads != downloads || len(w.notified) != notified {
 		t.Fatalf("%d more downloads, %d more notifications; want none for the rejected v1.10.0",
-			w.downloads-downloads, len(w.notified)-notified)
+			w.source.Downloads-downloads, len(w.notified)-notified)
 	}
 }
 
@@ -214,7 +214,7 @@ func TestADigestMismatchOnARetryIsStillReportedAsAMismatch(t *testing.T) {
 	addObsidian(t, w, obsidianImage)
 	w.publish("v1.10.0", oct10, map[string]testkit.AppImage{"Obsidian-1.10.0.AppImage": obsidian110})
 	w.tamper("v1.10.0", "Obsidian-1.10.0.AppImage")
-	w.source.failures = 1
+	w.source.Failures = 1
 
 	w.core().Check(context.Background(), "obsidian")
 
