@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"syscall"
 
 	"appimage-manager/internal/state"
 )
@@ -65,7 +66,7 @@ func (c *Core) Uninstall(ctx context.Context, options ...Opt) (Outcome, error) {
 	if keepConfig == "delete" {
 		plan = append(plan, Step{Describe: "delete " + c.deps.Paths.Config, do: func() error { return os.RemoveAll(c.deps.Paths.Config) }})
 	}
-	var packages []string
+	var packages, leftover []string
 	for _, bin := range c.deps.Binaries {
 		if _, err := os.Stat(bin); err != nil {
 			continue
@@ -74,6 +75,10 @@ func (c *Core) Uninstall(ctx context.Context, options ...Opt) (Outcome, error) {
 			if !slices.Contains(packages, pkg) {
 				packages = append(packages, pkg)
 			}
+			continue
+		}
+		if syscall.Access(filepath.Dir(bin), writeOK) != nil {
+			leftover = append(leftover, bin) // e.g. /usr/local/bin: not AiM's to delete
 			continue
 		}
 		plan = append(plan, Step{Describe: "delete " + bin, do: func() error { return removeIfExists(bin) }})
@@ -86,6 +91,9 @@ func (c *Core) Uninstall(ctx context.Context, options ...Opt) (Outcome, error) {
 	out := Outcome{Plan: append(plan.Descriptions(), forget.Descriptions()...)}
 	if len(packages) > 0 {
 		out.Notes = append(out.Notes, "Finish with: sudo pacman -R "+strings.Join(packages, " "))
+	}
+	if len(leftover) > 0 {
+		out.Notes = append(out.Notes, "AiM can't delete "+strings.Join(leftover, " and ")+"; remove them yourself.")
 	}
 	if o.dryRun {
 		return out, nil
@@ -127,3 +135,6 @@ func (a *onceForAll) Answer(ctx context.Context, q Question) (Answer, bool) {
 	}
 	return ans, ok
 }
+
+// writeOK is access(2)'s "may write" mode.
+const writeOK = 0x2

@@ -148,3 +148,19 @@ func TestUninstallLeavesNoUnitsEvenWhenNoAppHadATimer(t *testing.T) {
 		t.Fatalf("got %v; want no AiM units left", units)
 	}
 }
+
+func TestUninstallLeavesBinariesItMayNotDeleteToTheUser(t *testing.T) {
+	w := newWorld(t)
+	aimBinaries(t, w)
+	os.Chmod(w.path(".local/bin"), 0o555) // like /usr/local/bin for a normal user
+	t.Cleanup(func() { os.Chmod(w.path(".local/bin"), 0o755) })
+
+	out, err := w.core().Uninstall(context.Background(), answers(keepConfig))
+	if err != nil {
+		t.Fatalf("got %v; want the uninstall to finish", err)
+	}
+
+	if !exists(w.path(".local/bin/aim")) || !strings.Contains(strings.Join(out.Notes, "\n"), w.path(".local/bin/aim")) {
+		t.Fatalf("notes %q; want aim left in place and named for the user to remove", out.Notes)
+	}
+}
