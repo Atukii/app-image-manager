@@ -1,4 +1,6 @@
-package appimage_test
+// Package testkit holds test helpers shared by several packages: fake
+// AppImages and a fake systemd.
+package testkit
 
 import (
 	"bytes"
@@ -11,20 +13,20 @@ import (
 	"github.com/diskfs/go-diskfs/filesystem/squashfs"
 )
 
-// fixture describes a fake type-2 AppImage for tests.
-type fixture struct {
-	files      map[string]string // path in the AppImage → content
-	symlinks   map[string]string // path in the AppImage → link target
-	updateInfo string            // contents of the ELF .upd_info section
+// AppImage describes a fake type-2 AppImage for tests.
+type AppImage struct {
+	Files      map[string]string // path in the AppImage → content
+	Symlinks   map[string]string // path in the AppImage → link target
+	UpdateInfo string            // contents of the ELF .upd_info section
 }
 
-// build writes the fixture as an AppImage file: a minimal ELF runtime
+// Build writes the AppImage to a temp file and returns its path: : a minimal ELF runtime
 // carrying the AppImage type-2 magic and a .upd_info section, followed by a
 // gzip squashfs filesystem, the same layout real AppImages have.
-func (f fixture) build(t *testing.T) string {
+func (f AppImage) Build(t *testing.T) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "test.AppImage")
-	runtime := elfRuntime(f.updateInfo)
+	runtime := elfRuntime(f.UpdateInfo)
 	if err := os.WriteFile(path, runtime, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -40,7 +42,7 @@ func (f fixture) build(t *testing.T) string {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { os.RemoveAll(fs.Workspace()) })
-	for name, content := range f.files {
+	for name, content := range f.Files {
 		if dir := filepath.Dir(name); dir != "." {
 			if err := fs.Mkdir(dir); err != nil {
 				t.Fatalf("mkdir %s: %v", dir, err)
@@ -56,7 +58,7 @@ func (f fixture) build(t *testing.T) string {
 	}
 	// go-diskfs can't create symlinks itself, but Finalize copies the ones
 	// it finds in its workspace.
-	for name, target := range f.symlinks {
+	for name, target := range f.Symlinks {
 		if err := os.Symlink(target, filepath.Join(fs.Workspace(), name)); err != nil {
 			t.Fatalf("symlink %s: %v", name, err)
 		}

@@ -9,6 +9,9 @@ import (
 	"path/filepath"
 	"syscall"
 	"time"
+
+	"appimage-manager/internal/desktop"
+	"appimage-manager/internal/source"
 )
 
 // PollRate is how often a Managed App is Checked.
@@ -31,8 +34,20 @@ type State struct {
 
 // App is AiM's record of one Managed App.
 type App struct {
-	ID   string   `json:"id"`
-	Poll PollRate `json:"poll"`
+	ID           string     `json:"id"`
+	Source       source.Ref `json:"source"`
+	AssetPattern string     `json:"assetPattern"`
+	// Tag and Published describe the installed Release.
+	Tag       string    `json:"tag"`
+	Published time.Time `json:"published"`
+	Poll      PollRate  `json:"poll"`
+	// DesktopFile is the Desktop Entry's filename.
+	DesktopFile string            `json:"desktopFile"`
+	Overrides   desktop.Overrides `json:"overrides"`
+	// IconExt is the icon file's extension in the App Folder.
+	IconExt string `json:"iconExt"`
+	// UserIcon is set when the user chose the icon, so a Swap keeps it.
+	UserIcon bool `json:"userIcon,omitempty"`
 }
 
 // ErrLocked means another aim process held the state lock for longer than

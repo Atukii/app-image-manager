@@ -11,12 +11,13 @@ import (
 
 	"appimage-manager/internal/schedule"
 	"appimage-manager/internal/state"
+	"appimage-manager/internal/testkit"
 )
 
-func newScheduler(t *testing.T) (*schedule.Scheduler, *fakeSystemd) {
+func newScheduler(t *testing.T) (*schedule.Scheduler, *testkit.Systemd) {
 	t.Helper()
 	unitDir := t.TempDir()
-	systemd := newFakeSystemd(unitDir)
+	systemd := testkit.NewSystemd(unitDir)
 	return &schedule.Scheduler{UnitDir: unitDir, Aim: "/home/jakub/.local/bin/aim", Systemctl: systemd}, systemd
 }
 
@@ -27,9 +28,9 @@ func TestSetSchedulesTheAppsOwnTimer(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	dropIn := readFile(filepath.Join(s.UnitDir, "aim-check@obsidian.timer.d", "poll.conf"))
-	if !systemd.enabled["aim-check@obsidian.timer"] || !strings.Contains(dropIn, "OnCalendar=weekly\n") {
-		t.Fatalf("enabled: %v, drop-in:\n%s\nwant the obsidian timer enabled with OnCalendar=weekly", systemd.enabled, dropIn)
+	dropIn := string(must(os.ReadFile(filepath.Join(s.UnitDir, "aim-check@obsidian.timer.d", "poll.conf"))))
+	if !systemd.Enabled["aim-check@obsidian.timer"] || !strings.Contains(dropIn, "OnCalendar=weekly\n") {
+		t.Fatalf("enabled: %v, drop-in:\n%s\nwant the obsidian timer enabled with OnCalendar=weekly", systemd.Enabled, dropIn)
 	}
 }
 
@@ -45,8 +46,8 @@ func TestSetNeverRemovesTheAppsTimer(t *testing.T) {
 	}
 
 	_, statErr := os.Stat(filepath.Join(s.UnitDir, "aim-check@obsidian.timer.d"))
-	if systemd.enabled["aim-check@obsidian.timer"] || !errors.Is(statErr, fs.ErrNotExist) {
-		t.Fatalf("enabled: %v, drop-in dir error: %v; want the timer disabled and its drop-in gone", systemd.enabled, statErr)
+	if systemd.Enabled["aim-check@obsidian.timer"] || !errors.Is(statErr, fs.ErrNotExist) {
+		t.Fatalf("enabled: %v, drop-in dir error: %v; want the timer disabled and its drop-in gone", systemd.Enabled, statErr)
 	}
 }
 
@@ -74,8 +75,8 @@ func TestRemoveKeepsTheTemplatesWhileOtherAppsAreScheduled(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if systemd.enabled["aim-check@obsidian.timer"] || !systemd.enabled["aim-check@neovim.timer"] || !templatesExist(s) {
-		t.Fatalf("enabled: %v, templates: %v; want only neovim's timer, and the templates kept", systemd.enabled, templatesExist(s))
+	if systemd.Enabled["aim-check@obsidian.timer"] || !systemd.Enabled["aim-check@neovim.timer"] || !templatesExist(s) {
+		t.Fatalf("enabled: %v, templates: %v; want only neovim's timer, and the templates kept", systemd.Enabled, templatesExist(s))
 	}
 }
 
@@ -89,7 +90,14 @@ func TestRemovingTheLastAppLeavesNoAiMUnits(t *testing.T) {
 	}
 
 	entries, _ := os.ReadDir(s.UnitDir)
-	if len(systemd.enabled) != 0 || len(entries) != 0 {
-		t.Fatalf("enabled: %v, unit dir: %v; want nothing left", systemd.enabled, entries)
+	if len(systemd.Enabled) != 0 || len(entries) != 0 {
+		t.Fatalf("enabled: %v, unit dir: %v; want nothing left", systemd.Enabled, entries)
 	}
+}
+
+func must[T any](v T, err error) T {
+	if err != nil {
+		panic(err)
+	}
+	return v
 }

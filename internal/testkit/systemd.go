@@ -1,4 +1,4 @@
-package schedule_test
+package testkit
 
 import (
 	"context"
@@ -8,20 +8,25 @@ import (
 	"strings"
 )
 
-// fakeSystemd behaves like `systemctl --user` for the commands AiM uses: it
+// Systemd behaves like `systemctl --user` for the commands AiM uses: it
 // only knows the unit files present in unitDir at its last daemon-reload, as
 // real systemd does.
-type fakeSystemd struct {
+type Systemd struct {
 	unitDir string
 	loaded  []string
-	enabled map[string]bool
+	// Enabled holds the enabled units.
+	Enabled map[string]bool
+	// FailEnable, when set, is returned by every enable command.
+	FailEnable error
 }
 
-func newFakeSystemd(unitDir string) *fakeSystemd {
-	return &fakeSystemd{unitDir: unitDir, enabled: map[string]bool{}}
+// NewSystemd returns a fake systemd using the units in unitDir.
+func NewSystemd(unitDir string) *Systemd {
+	return &Systemd{unitDir: unitDir, Enabled: map[string]bool{}}
 }
 
-func (f *fakeSystemd) Run(_ context.Context, args ...string) error {
+// Run runs a systemctl command.
+func (f *Systemd) Run(_ context.Context, args ...string) error {
 	if len(args) == 0 || args[0] != "--user" {
 		return fmt.Errorf("want --user, got %q", args)
 	}
@@ -34,16 +39,19 @@ func (f *fakeSystemd) Run(_ context.Context, args ...string) error {
 		}
 	case strings.HasPrefix(cmd, "enable --now "):
 		unit := strings.TrimPrefix(cmd, "enable --now ")
+		if f.FailEnable != nil {
+			return f.FailEnable
+		}
 		if !slices.Contains(f.loaded, template(unit)) {
 			return fmt.Errorf("Unit %s not found (no daemon-reload since it was written?)", unit)
 		}
-		f.enabled[unit] = true
+		f.Enabled[unit] = true
 	case strings.HasPrefix(cmd, "disable --now "):
 		unit := strings.TrimPrefix(cmd, "disable --now ")
 		if !slices.Contains(f.loaded, template(unit)) {
 			return fmt.Errorf("Failed to disable unit: Unit file %s does not exist", unit)
 		}
-		delete(f.enabled, unit)
+		delete(f.Enabled, unit)
 	default:
 		return fmt.Errorf("unexpected systemctl command %q", cmd)
 	}
@@ -57,9 +65,4 @@ func template(unit string) string {
 		return unit
 	}
 	return unit[:at+1] + unit[dot:]
-}
-
-func readFile(path string) string {
-	data, _ := os.ReadFile(path)
-	return string(data)
 }

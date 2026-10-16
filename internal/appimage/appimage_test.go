@@ -7,15 +7,16 @@ import (
 	"testing"
 
 	"appimage-manager/internal/appimage"
+	"appimage-manager/internal/testkit"
 )
 
 const obsidianEntry = "[Desktop Entry]\nName=Obsidian\nExec=AppRun %U\nIcon=obsidian\nType=Application\n"
 
 func TestInspectFindsTheEmbeddedDesktopEntryAndItsFilename(t *testing.T) {
-	path := fixture{files: map[string]string{
+	path := testkit.AppImage{Files: map[string]string{
 		"md.obsidian.Obsidian.desktop": obsidianEntry,
 		"AppRun":                       "#!/bin/sh\n",
-	}}.build(t)
+	}}.Build(t)
 
 	info, err := appimage.Inspect(path)
 	if err != nil {
@@ -32,13 +33,13 @@ func TestInspectFindsTheEmbeddedDesktopEntryAndItsFilename(t *testing.T) {
 const png = "\x89PNG\r\n\x1a\nfake-image-data"
 
 func TestInspectFollowsTheDirIconSymlinksToTheIcon(t *testing.T) {
-	path := fixture{
-		files: map[string]string{"usr/share/icons/hicolor/256x256/apps/obsidian.png": png},
-		symlinks: map[string]string{
+	path := testkit.AppImage{
+		Files: map[string]string{"usr/share/icons/hicolor/256x256/apps/obsidian.png": png},
+		Symlinks: map[string]string{
 			".DirIcon":     "obsidian.png",
 			"obsidian.png": "usr/share/icons/hicolor/256x256/apps/obsidian.png",
 		},
-	}.build(t)
+	}.Build(t)
 
 	info, err := appimage.Inspect(path)
 	if err != nil {
@@ -52,7 +53,7 @@ func TestInspectFollowsTheDirIconSymlinksToTheIcon(t *testing.T) {
 
 func TestInspectReadsTheEmbeddedUpdateInformation(t *testing.T) {
 	const updateInfo = "gh-releases-zsync|obsidianmd|obsidian-releases|latest|Obsidian-*.AppImage.zsync"
-	path := fixture{files: map[string]string{"AppRun": "#!/bin/sh\n"}, updateInfo: updateInfo}.build(t)
+	path := testkit.AppImage{Files: map[string]string{"AppRun": "#!/bin/sh\n"}, UpdateInfo: updateInfo}.Build(t)
 
 	info, err := appimage.Inspect(path)
 	if err != nil {
