@@ -1,5 +1,9 @@
-# Vets and tests every push; on a v* tag, builds aim and aim-gui for
-# linux-x86_64 and publishes them as a GitHub Release (spec CI-1).
+# One pipeline (ADR 0010): every push and pull request is tested; a push to
+# main that contains releasable Conventional Commits is tagged with the next
+# semantic version, built and released. Pushing a v* tag by hand builds and
+# releases it too. Tagging, building and releasing happen in this one run
+# because a tag pushed with the workflow's own token doesn't start another
+# workflow run.
 name: build
 
 on:
@@ -10,6 +14,11 @@ on:
 
 permissions:
   contents: read
+
+concurrency:
+  # Never tag two pushes to main at once; pull requests don't need waiting.
+  group: build-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   test:
@@ -28,22 +37,72 @@ jobs:
       - run: go vet ./...
       - run: go test -race ./...
 
-  build:
+  version:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: test
     runs-on: ubuntu-24.04
+    permissions:
+      contents: write # to push the tag
+    outputs:
+      version: ${{ steps.next.outputs.version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # every commit and tag, to work out the version
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
-      - name: Build aim (static, no cgo)
-        run: CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=${GITHUB_REF_NAME}" -o dist/aim ./cmd/aim
+      - name: Work out the next version
+        id: next
+        run: |
+          version="$(go run ./tools/nextversion)"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [ -n "$version" ]; then
+            echo "Releasing $version" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No release: nothing since the last tag is a fix, feature or breaking change." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Tag it
+        if: steps.next.outputs.version != ''
+        env:
+          VERSION: ${{ steps.next.outputs.version }}
+        run: |
+          git tag "$VERSION" "$GITHUB_SHA"
+          git push origin "refs/tags/$VERSION"
+
+  build:
+    # After a new version is tagged, or when a v* tag was pushed by hand.
+    if: >-
+      always() && needs.test.result == 'success' &&
+      (startsWith(github.ref, 'refs/tags/v') || needs.version.outputs.version != '')
+    needs: [test, version]
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.which.outputs.version }}
+    steps:
+      - name: Which version
+        id: which
+        env:
+          TAGGED: ${{ needs.version.outputs.version }}
+        run: echo "version=${TAGGED:-$GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/${{ steps.which.outputs.version }}
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
       - name: Install Fyne's build dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends gcc libgl1-mesa-dev xorg-dev
+      - name: Build aim (static, no cgo)
+        env:
+          VERSION: ${{ steps.which.outputs.version }}
+        run: CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=$VERSION" -o dist/aim ./cmd/aim
       - name: Build aim-gui (cgo, for Fyne)
-        run: CGO_ENABLED=1 go build -trimpath -ldflags="-s -w -X main.version=${GITHUB_REF_NAME}" -o dist/aim-gui ./cmd/aim-gui
+        env:
+          VERSION: ${{ steps.which.outputs.version }}
+        run: CGO_ENABLED=1 go build -trimpath -ldflags="-s -w -X main.version=$VERSION" -o dist/aim-gui ./cmd/aim-gui
       - name: Checksums
         run: cd dist && sha256sum -- * > SHA256SUMS
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -53,11 +112,10 @@ jobs:
           if-no-files-found: error
 
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
     needs: build
     runs-on: ubuntu-24.04
     permissions:
-      contents: write
+      contents: write # to publish the release
     steps:
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
@@ -66,4 +124,5 @@ jobs:
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --generate-notes --verify-tag
+          VERSION: ${{ needs.build.outputs.version }}
+        run: gh release create "$VERSION" dist/* --repo "$GITHUB_REPOSITORY" --title "$VERSION" --generate-notes --verify-tag

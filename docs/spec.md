@@ -196,5 +196,5 @@ The layout, wording and colours were settled with a clickable prototype (layout 
 
 ## Build and release
 
-- **CI-1** `.github/workflows/build.yaml` runs `go vet` and `go test` on every push, and on a `v*` tag builds `aim` (`CGO_ENABLED=0`) and `aim-gui` (cgo, on ubuntu with the Fyne build dependencies) for linux-x86_64, attaching both to a GitHub Release with a SHA-256 checksums file.
+- **CI-1** `.github/workflows/build.yaml` runs `gofmt`, `go vet` and `go test -race` on every push and pull request. On a push to `main`, it works out the next semantic version from the Conventional Commits since the last `v*` tag and, if there is one, tags the commit, builds `aim` (`CGO_ENABLED=0`) and `aim-gui` (cgo, with Fyne's build dependencies) for linux-x86_64 with the version embedded, and publishes a GitHub Release with both and a `SHA256SUMS` file (ADR 0010). A `v*` tag pushed by hand is built and released the same way.
 - **CI-2** The repository stays local until the user publishes it. The Go module path is `appimage-manager`.
