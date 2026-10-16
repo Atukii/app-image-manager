@@ -20,11 +20,18 @@ import (
 	"appimage-manager/internal/source"
 )
 
+// version is set at build time with -ldflags "-X main.version=…".
+var version = "dev"
+
 func main() {
 	os.Exit(run())
 }
 
 func run() int {
+	if len(os.Args) == 2 && (os.Args[1] == "version" || os.Args[1] == "--version") {
+		fmt.Println("aim", version)
+		return 0
+	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "aim:", err)

@@ -1,0 +1,67 @@
+# Vets and tests every push; on a v* tag, builds aim and aim-gui for
+# linux-x86_64 and publishes them as a GitHub Release (spec CI-1).
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: Check formatting
+        run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
+      - run: go vet ./...
+      - run: go test -race ./...
+
+  build:
+    needs: test
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: Build aim (static, no cgo)
+        run: CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=${GITHUB_REF_NAME}" -o dist/aim ./cmd/aim
+      - name: Install Fyne's build dependencies
+        if: hashFiles('cmd/aim-gui/**') != ''
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends gcc libgl1-mesa-dev xorg-dev
+      - name: Build aim-gui (cgo, for Fyne)
+        if: hashFiles('cmd/aim-gui/**') != ''
+        run: CGO_ENABLED=1 go build -trimpath -ldflags="-s -w -X main.version=${GITHUB_REF_NAME}" -o dist/aim-gui ./cmd/aim-gui
+      - name: Checksums
+        run: cd dist && sha256sum -- * > SHA256SUMS
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: aim-linux-x86_64
+          path: dist/
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: aim-linux-x86_64
+          path: dist
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --generate-notes --verify-tag
