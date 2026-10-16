@@ -49,6 +49,9 @@ type Deps struct {
 	Aim string
 	// DefaultPoll is the Poll Rate for new apps; weekly when empty.
 	DefaultPoll state.PollRate
+	// RefreshMenu tells the desktop that the Desktop Entries in dir changed
+	// (update-desktop-database). Nil does nothing.
+	RefreshMenu func(dir string)
 }
 
 // Core performs AiM operations.
@@ -68,6 +71,9 @@ func New(d Deps) *Core {
 	}
 	if d.ProcRoot == "" {
 		d.ProcRoot = "/proc"
+	}
+	if d.RefreshMenu == nil {
+		d.RefreshMenu = func(string) {}
 	}
 	if d.DefaultPoll == "" {
 		d.DefaultPoll = state.Weekly

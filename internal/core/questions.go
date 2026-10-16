@@ -102,19 +102,27 @@ type opts struct {
 	answerer Answerer
 	dryRun   bool
 	progress func(done, total int64)
+	icon     string
 }
 
 // With answers the operation's Questions with a.
 func With(a Answerer) Opt { return func(o *opts) { o.answerer = a } }
 
+// Defaults answers every Question --yes may answer with its suggestion.
+var Defaults Answerer = defaults{}
+
 // Yes accepts every suggested answer --yes may accept.
-var Yes = With(defaults{})
+var Yes = With(Defaults)
 
 // DryRun makes the operation report its Plan without changing anything.
 func DryRun() Opt { return func(o *opts) { o.dryRun = true } }
 
 // Progress reports download progress.
 func Progress(fn func(done, total int64)) Opt { return func(o *opts) { o.progress = fn } }
+
+// Icon makes Add use the icon file at path (PNG or SVG) instead of the
+// AppImage's own (ADD-7).
+func Icon(path string) Opt { return func(o *opts) { o.icon = path } }
 
 func collect(options []Opt) opts {
 	o := opts{answerer: Layered{}}

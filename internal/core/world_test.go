@@ -28,6 +28,8 @@ type world struct {
 	source  *fakeSource
 	now     time.Time
 	running map[string]bool // AppImage paths currently running
+	// refreshed records each directory the desktop menu was refreshed for.
+	refreshed []string
 }
 
 func newWorld(t *testing.T) *world {
@@ -67,6 +69,9 @@ func (w *world) core() *core.Core {
 		Sources:   func(source.Ref) (source.ReleaseSource, error) { return w.source, nil },
 		Systemctl: w.systemd,
 		Aim:       "/home/jakub/.local/bin/aim",
+		RefreshMenu: func(dir string) {
+			w.refreshed = append(w.refreshed, dir)
+		},
 	})
 }
 

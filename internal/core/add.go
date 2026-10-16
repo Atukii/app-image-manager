@@ -27,6 +27,8 @@ type Outcome struct {
 	Plan []string `json:"plan"`
 	// App is the Managed App the operation was about.
 	App string `json:"app,omitempty"`
+	// Notes are one-line messages for the user.
+	Notes []string `json:"notes,omitempty"`
 }
 
 // Add installs the latest Release found at sourceURL as a new Managed App.
@@ -56,6 +58,11 @@ func (c *Core) Add(ctx context.Context, sourceURL string, options ...Opt) (Outco
 	if err != nil {
 		return Outcome{}, err
 	}
+	if o.icon != "" {
+		if info.Icon, info.IconExt, err = readIcon(o.icon); err != nil {
+			return Outcome{}, err
+		}
+	}
 	current, err := c.store.Load()
 	if err != nil {
 		return Outcome{}, err
@@ -68,15 +75,25 @@ func (c *Core) Add(ctx context.Context, sourceURL string, options ...Opt) (Outco
 	app := state.App{
 		ID: id, Source: ref, AssetPattern: pattern,
 		Tag: rel.Tag, Published: rel.Published, Poll: c.deps.DefaultPoll,
-		DesktopFile: info.DesktopFile,
+		DesktopFile: info.DesktopFile, UserIcon: o.icon != "",
 	}
 	if app.DesktopFile == "" {
 		app.DesktopFile = id + ".desktop"
+	}
+	if app.DesktopFile, err = c.avoidShadowing(ctx, o, id, app.DesktopFile); err != nil {
+		return Outcome{}, err
+	}
+	if len(info.DesktopEntry) == 0 {
+		if app.Overrides, err = reviewDraft(ctx, o, id); err != nil {
+			return Outcome{}, err
+		}
 	}
 	plan := c.installPlan(ctx, &app, download, info)
 	if o.dryRun {
 		return Outcome{Plan: plan.Descriptions(), App: id}, nil
 	}
+	out := Outcome{Plan: plan.Descriptions(), App: id}
+	firstTimer := !c.scheduler.Installed() && app.Poll != state.Never
 	_, err = c.store.Update(func(s *state.State) error {
 		if _, taken := s.Apps[id]; taken {
 			return fmt.Errorf("app ID %q: %w", id, ErrAppIDTaken)
@@ -87,7 +104,15 @@ func (c *Core) Add(ctx context.Context, sourceURL string, options ...Opt) (Outco
 		s.Apps[id] = app
 		return nil
 	})
-	return Outcome{Plan: plan.Descriptions(), App: id}, err
+	if err != nil {
+		return out, err
+	}
+	c.deps.RefreshMenu(c.deps.Paths.Applications)
+	if firstTimer {
+		out.Notes = append(out.Notes, "Installed AiM's systemd user timers in "+c.deps.Paths.Units+
+			" so updates are checked automatically.")
+	}
+	return out, nil
 }
 
 // chooseAsset picks the Asset to install, asking when several match, and
@@ -202,6 +227,79 @@ func suggestID(ref source.Ref, assetName string) string {
 		}
 	}
 	return id
+}
+
+// readIcon reads a user-supplied icon, which must be a PNG or SVG file.
+func readIcon(path string) ([]byte, string, error) {
+	ext := strings.ToLower(filepath.Ext(path))
+	if ext != ".png" && ext != ".svg" {
+		return nil, "", fmt.Errorf("icon %s: must be a .png or .svg file", path)
+	}
+	data, err := os.ReadFile(path)
+	return data, ext, err
+}
+
+// avoidShadowing checks whether a Desktop Entry named file would hide a
+// system one (ADD-9) and, if so, asks whether to use <id>.desktop instead.
+func (c *Core) avoidShadowing(ctx context.Context, o opts, id, file string) (string, error) {
+	for _, dir := range c.deps.Paths.SystemApplications {
+		system := filepath.Join(dir, file)
+		if _, err := os.Stat(system); err != nil {
+			continue
+		}
+		renamed := id + ".desktop"
+		answer, err := o.ask(ctx, Question{
+			ID: "shadowing",
+			Prompt: fmt.Sprintf("%s already exists. A user Desktop Entry with the same name would hide it "+
+				"from the application menu.", system),
+			Options: []Option{
+				{Key: "rename", Label: "use " + renamed + " instead (both stay visible)"},
+				{Key: "hide", Label: "use " + file + " anyway (hides the system entry)"},
+			},
+			Default: ptr("rename"), YesOK: true, Flag: "--shadowing",
+		})
+		if err != nil {
+			return "", err
+		}
+		if answer == "hide" {
+			return file, nil
+		}
+		return renamed, nil
+	}
+	return file, nil
+}
+
+// draftFields are the drafted Desktop Entry values the user reviews
+// (ADD-8a), in the order they are asked.
+var draftFields = []struct{ key, prompt string }{
+	{"Name", "Name shown in the application menu"},
+	{"Comment", "Short description (optional)"},
+	{"Categories", "Categories, ;-separated, from: AudioVideo Development Education Game " +
+		"Graphics Network Office Science Settings System Utility"},
+	{"Keywords", "Search keywords, ;-separated (optional)"},
+	{"Terminal", "Run in a terminal? (true or false)"},
+}
+
+// reviewDraft asks the user to review the Desktop Entry AiM drafted for an
+// AppImage without one. Values the user changes become Overrides.
+func reviewDraft(ctx context.Context, o opts, id string) (desktop.Overrides, error) {
+	draft := desktop.Draft(id)
+	overrides := desktop.Overrides{Fields: map[string]string{}}
+	for _, f := range draftFields {
+		suggested, _ := draft.Get(f.key)
+		value, err := o.ask(ctx, Question{
+			ID:      "entry." + f.key,
+			Prompt:  "This AppImage has no Desktop Entry, so AiM drafted one. " + f.prompt,
+			Default: ptr(suggested), YesOK: true, Flag: "--entry " + f.key + "=…",
+		})
+		if err != nil {
+			return desktop.Overrides{}, err
+		}
+		if value != suggested {
+			overrides.Fields[f.key] = value
+		}
+	}
+	return overrides, nil
 }
 
 // installPlan is the Plan that puts a downloaded AppImage in place as app:

@@ -35,6 +35,12 @@ const (
 
 func timer(appID string) string { return "aim-check@" + appID + ".timer" }
 
+// Installed reports whether the aim-check@ templates are in place.
+func (s *Scheduler) Installed() bool {
+	_, err := os.Stat(filepath.Join(s.UnitDir, timerTemplate))
+	return err == nil
+}
+
 // Set schedules appID's Checks at rate. Never means appID has no timer.
 func (s *Scheduler) Set(ctx context.Context, appID string, rate state.PollRate) error {
 	if rate == state.Never {
